@@ -1,6 +1,7 @@
 # Material classes for the Tata Steel internship prototype.
 # Keep name values in sync with configs/full_dataset_yolo.yaml.
 # density_kg_m3 and default_thickness_cm are approximate starting points.
+# calibration_factor is learned from measured samples and defaults to 1.0.
 # weight_uncertainty_ratio controls the displayed range around the midpoint.
 # Calibrate them with real samples and actual measured weights before final use.
 
@@ -10,6 +11,7 @@ materials:
     density_kg_m3: 7200
     default_thickness_cm: 1.5
     box_fill_ratio: 0.65
+    calibration_factor: 1.0
     weight_uncertainty_ratio: 0.25
 
   - name: cloth
@@ -17,6 +19,7 @@ materials:
     density_kg_m3: 300
     default_thickness_cm: 1.0
     box_fill_ratio: 0.55
+    calibration_factor: 1.0
     weight_uncertainty_ratio: 0.45
 
   - name: gas_cylinder
@@ -24,6 +27,7 @@ materials:
     density_kg_m3: 7850
     default_thickness_cm: 0.6
     box_fill_ratio: 0.75
+    calibration_factor: 1.0
     weight_uncertainty_ratio: 0.20
 
   - name: dust
@@ -31,6 +35,7 @@ materials:
     density_kg_m3: 1200
     default_thickness_cm: 1.0
     box_fill_ratio: 0.80
+    calibration_factor: 1.0
     weight_uncertainty_ratio: 0.50
 
   - name: pitted_sheets
@@ -38,6 +43,7 @@ materials:
     density_kg_m3: 7850
     default_thickness_cm: 0.4
     box_fill_ratio: 0.75
+    calibration_factor: 1.0
     weight_uncertainty_ratio: 0.30
 
   - name: left_over_paint
@@ -45,20 +51,23 @@ materials:
     density_kg_m3: 1300
     default_thickness_cm: 1.0
     box_fill_ratio: 0.70
+    calibration_factor: 1.0
     weight_uncertainty_ratio: 0.40
 
   - name: plastics
     category: polymer
-    density_kg_m3: 950
+    density_kg_m3: 750
     default_thickness_cm: 2.0
     box_fill_ratio: 0.55
-    weight_uncertainty_ratio: 0.45
+    calibration_factor: 1.0
+    weight_uncertainty_ratio: 0.25
 
   - name: rubber
     category: polymer
     density_kg_m3: 1100
     default_thickness_cm: 2.5
     box_fill_ratio: 0.60
+    calibration_factor: 1.0
     weight_uncertainty_ratio: 0.35
 
   - name: tin
@@ -66,6 +75,7 @@ materials:
     density_kg_m3: 7300
     default_thickness_cm: 0.3
     box_fill_ratio: 0.65
+    calibration_factor: 1.0
     weight_uncertainty_ratio: 0.30
 
   - name: water
@@ -73,6 +83,7 @@ materials:
     density_kg_m3: 1000
     default_thickness_cm: 1.0
     box_fill_ratio: 0.85
+    calibration_factor: 1.0
     weight_uncertainty_ratio: 0.25
 
   - name: wood
@@ -80,4 +91,5 @@ materials:
     density_kg_m3: 600
     default_thickness_cm: 3.0
     box_fill_ratio: 0.60
+    calibration_factor: 1.0
     weight_uncertainty_ratio: 0.40

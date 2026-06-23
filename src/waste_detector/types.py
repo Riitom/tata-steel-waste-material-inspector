@@ -11,6 +11,7 @@ class MaterialProfile:
     density_kg_m3: float
     default_thickness_cm: float
     box_fill_ratio: float = 0.6
+    calibration_factor: float = 1.0
     weight_uncertainty_ratio: float = 0.35
 
 

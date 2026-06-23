@@ -10,6 +10,9 @@ logs/
 *.cache
 data/
 audit_exports/
+calibration/material_measurements.csv
+configs/materials.calibrated.yaml
+configs/materials.yaml.bak
 web/frontend/node_modules/
 web/frontend/dist/
 web/frontend/playwright-report/

@@ -37,6 +37,7 @@ Tata_Internship/
     results.csv
   scripts/
     audit_logs.py
+    calibrate_materials.py
     evaluate_yolo.py
     run_web.py
     train_yolo.py
@@ -255,6 +256,27 @@ resulting minimum-to-maximum expected range rather than the midpoint alone.
 The result is an approximate engineering estimate, not a replacement for an
 industrial weighing system. Camera calibration and measured reference samples
 are required for operational accuracy.
+
+## Calibrate Weight Profiles
+
+Record scale measurements in:
+
+```text
+calibration/material_measurements.csv
+```
+
+Use one row per weighed object or single-material pile. Each row records its
+material class, detected box or mask area, physical image scale, and actual
+measured weight. Then run:
+
+```powershell
+python scripts\calibrate_materials.py
+```
+
+The script fits a robust per-material `calibration_factor`, estimates an
+uncertainty range from observed relative errors, reports MAE/MAPE before and
+after calibration, and writes `configs/materials.calibrated.yaml`. See
+`calibration/README.md` for the complete collection procedure.
 
 ## Auditor Records
 

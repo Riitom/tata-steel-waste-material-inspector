@@ -41,7 +41,8 @@ class WeightEstimator:
         area_cm2 = area_px * self.pixel_area_cm2
         volume_cm3 = area_cm2 * profile.default_thickness_cm
         density_g_cm3 = profile.density_kg_m3 / 1000.0
-        weight_kg = (volume_cm3 * density_g_cm3) / 1000.0
+        baseline_weight_kg = (volume_cm3 * density_g_cm3) / 1000.0
+        weight_kg = baseline_weight_kg * profile.calibration_factor
 
         detection.category = profile.category
         detection.area_px_used = area_px
@@ -53,7 +54,11 @@ class WeightEstimator:
         detection.expected_weight_max_kg = weight_kg * (
             1.0 + profile.weight_uncertainty_ratio
         )
-        detection.weight_method = method
+        detection.weight_method = (
+            f"{method}_calibrated"
+            if profile.calibration_factor != 1.0
+            else method
+        )
         return detection
 
     def estimate_image(self, image_path: str, detections: list[Detection], annotated_path: str | None) -> ImageResult:
