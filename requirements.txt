@@ -1,0 +1,10 @@
+numpy
+pyyaml
+Pillow
+torch
+torchvision
+ultralytics
+fastapi==0.136.3
+uvicorn[standard]
+SQLAlchemy==2.0.50
+python-multipart

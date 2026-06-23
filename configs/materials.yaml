@@ -1,0 +1,83 @@
+# Material classes for the Tata Steel internship prototype.
+# Keep name values in sync with configs/full_dataset_yolo.yaml.
+# density_kg_m3 and default_thickness_cm are approximate starting points.
+# weight_uncertainty_ratio controls the displayed range around the midpoint.
+# Calibrate them with real samples and actual measured weights before final use.
+
+materials:
+  - name: cast_iron
+    category: ferrous_metal
+    density_kg_m3: 7200
+    default_thickness_cm: 1.5
+    box_fill_ratio: 0.65
+    weight_uncertainty_ratio: 0.25
+
+  - name: cloth
+    category: textile
+    density_kg_m3: 300
+    default_thickness_cm: 1.0
+    box_fill_ratio: 0.55
+    weight_uncertainty_ratio: 0.45
+
+  - name: gas_cylinder
+    category: pressurized_container
+    density_kg_m3: 7850
+    default_thickness_cm: 0.6
+    box_fill_ratio: 0.75
+    weight_uncertainty_ratio: 0.20
+
+  - name: dust
+    category: fine_waste
+    density_kg_m3: 1200
+    default_thickness_cm: 1.0
+    box_fill_ratio: 0.80
+    weight_uncertainty_ratio: 0.50
+
+  - name: pitted_sheets
+    category: ferrous_metal
+    density_kg_m3: 7850
+    default_thickness_cm: 0.4
+    box_fill_ratio: 0.75
+    weight_uncertainty_ratio: 0.30
+
+  - name: left_over_paint
+    category: chemical_waste
+    density_kg_m3: 1300
+    default_thickness_cm: 1.0
+    box_fill_ratio: 0.70
+    weight_uncertainty_ratio: 0.40
+
+  - name: plastics
+    category: polymer
+    density_kg_m3: 950
+    default_thickness_cm: 2.0
+    box_fill_ratio: 0.55
+    weight_uncertainty_ratio: 0.45
+
+  - name: rubber
+    category: polymer
+    density_kg_m3: 1100
+    default_thickness_cm: 2.5
+    box_fill_ratio: 0.60
+    weight_uncertainty_ratio: 0.35
+
+  - name: tin
+    category: nonferrous_metal
+    density_kg_m3: 7300
+    default_thickness_cm: 0.3
+    box_fill_ratio: 0.65
+    weight_uncertainty_ratio: 0.30
+
+  - name: water
+    category: liquid
+    density_kg_m3: 1000
+    default_thickness_cm: 1.0
+    box_fill_ratio: 0.85
+    weight_uncertainty_ratio: 0.25
+
+  - name: wood
+    category: organic
+    density_kg_m3: 600
+    default_thickness_cm: 3.0
+    box_fill_ratio: 0.60
+    weight_uncertainty_ratio: 0.40

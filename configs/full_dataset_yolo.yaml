@@ -1,0 +1,15 @@
+train: ../datasets/full_dataset/images/train
+val: ../datasets/full_dataset/images/val
+test: ../datasets/full_dataset/images/test
+names:
+  0: cast_iron
+  1: cloth
+  2: gas_cylinder
+  3: dust
+  4: pitted_sheets
+  5: left_over_paint
+  6: plastics
+  7: rubber
+  8: tin
+  9: water
+  10: wood
