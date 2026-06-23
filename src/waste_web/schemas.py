@@ -72,6 +72,37 @@ class HealthResponse(BaseModel):
     model_error: str | None = None
 
 
+class DashboardDailyActivity(BaseModel):
+    date: str
+    label: str
+    runs: int
+    images: int
+    detections: int
+
+
+class DashboardMaterialCount(BaseModel):
+    label: str
+    count: int
+
+
+class DashboardSummary(BaseModel):
+    generated_at: datetime
+    timezone: str
+    today_label: str
+    total_runs: int
+    today_runs: int
+    completed_runs: int
+    failed_runs: int
+    total_images: int
+    today_images: int
+    total_detections: int
+    today_detections: int
+    success_rate: float
+    average_duration_ms: int | None
+    daily_activity: list[DashboardDailyActivity] = Field(default_factory=list)
+    material_counts: list[DashboardMaterialCount] = Field(default_factory=list)
+
+
 class AuditRunSummary(BaseModel):
     run_id: str
     created_at: datetime

@@ -28,6 +28,7 @@ from .inference import YoloInferenceService
 from .schemas import (
     AuditRunDetail,
     AuditRunSummary,
+    DashboardSummary,
     HealthResponse,
     HistoryRunSummary,
     ImageResultResponse,
@@ -99,6 +100,11 @@ def health() -> HealthResponse:
         input_size=settings.model_imgsz,
         model_error=inference.load_error,
     )
+
+
+@app.get("/api/dashboard/summary", response_model=DashboardSummary)
+def dashboard_summary() -> DashboardSummary:
+    return DashboardSummary(**store.dashboard_summary())
 
 
 @app.post("/api/predict", response_model=PredictionRunResponse)

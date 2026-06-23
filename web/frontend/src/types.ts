@@ -8,6 +8,37 @@ export type HealthResponse = {
   model_error: string | null
 }
 
+export type DashboardDailyActivity = {
+  date: string
+  label: string
+  runs: number
+  images: number
+  detections: number
+}
+
+export type DashboardMaterialCount = {
+  label: string
+  count: number
+}
+
+export type DashboardSummary = {
+  generated_at: string
+  timezone: string
+  today_label: string
+  total_runs: number
+  today_runs: number
+  completed_runs: number
+  failed_runs: number
+  total_images: number
+  today_images: number
+  total_detections: number
+  today_detections: number
+  success_rate: number
+  average_duration_ms: number | null
+  daily_activity: DashboardDailyActivity[]
+  material_counts: DashboardMaterialCount[]
+}
+
 export type ImageQuality = {
   valid: boolean
   score: number

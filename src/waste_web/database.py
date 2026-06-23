@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from collections import Counter
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, Text, create_engine, inspect, select, text
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, relationship, selectinload, sessionmaker
@@ -183,6 +185,97 @@ class AuditStore:
     def get_image(self, image_id: int) -> AuditImage | None:
         with self.session_factory() as session:
             return session.get(AuditImage, image_id)
+
+    def dashboard_summary(
+        self,
+        timezone_name: str = "Asia/Kolkata",
+        days: int = 7,
+    ) -> dict[str, Any]:
+        zone = ZoneInfo(timezone_name)
+        now_local = datetime.now(zone)
+        today = now_local.date()
+        first_day = today - timedelta(days=max(1, days) - 1)
+
+        with self.session_factory() as session:
+            runs = list(
+                session.scalars(
+                    select(InferenceRun)
+                    .options(selectinload(InferenceRun.images))
+                    .order_by(InferenceRun.created_at.asc())
+                )
+            )
+
+        def local_date(value: datetime) -> date:
+            if value.tzinfo is None:
+                value = value.replace(tzinfo=timezone.utc)
+            return value.astimezone(zone).date()
+
+        completed = [run for run in runs if run.status == "completed"]
+        failed = [run for run in runs if run.status == "failed"]
+        today_runs = [run for run in runs if local_date(run.created_at) == today]
+        completed_durations = [
+            run.duration_ms
+            for run in completed
+            if run.duration_ms is not None
+        ]
+
+        daily = {
+            first_day + timedelta(days=offset): {
+                "runs": 0,
+                "images": 0,
+                "detections": 0,
+            }
+            for offset in range(max(1, days))
+        }
+        material_counts: Counter[str] = Counter()
+
+        for run in runs:
+            run_date = local_date(run.created_at)
+            if run_date in daily:
+                daily[run_date]["runs"] += 1
+                daily[run_date]["images"] += run.image_count
+                daily[run_date]["detections"] += run.total_detections
+            for image in run.images:
+                for detection in image.detections:
+                    label = str(detection.get("label") or "unknown")
+                    material_counts[label] += 1
+
+        total_runs = len(runs)
+        return {
+            "generated_at": now_local,
+            "timezone": timezone_name,
+            "today_label": today.isoformat(),
+            "total_runs": total_runs,
+            "today_runs": len(today_runs),
+            "completed_runs": len(completed),
+            "failed_runs": len(failed),
+            "total_images": sum(run.image_count for run in runs),
+            "today_images": sum(run.image_count for run in today_runs),
+            "total_detections": sum(run.total_detections for run in runs),
+            "today_detections": sum(run.total_detections for run in today_runs),
+            "success_rate": (
+                round((len(completed) / total_runs) * 100.0, 1)
+                if total_runs
+                else 0.0
+            ),
+            "average_duration_ms": (
+                round(sum(completed_durations) / len(completed_durations))
+                if completed_durations
+                else None
+            ),
+            "daily_activity": [
+                {
+                    "date": day.isoformat(),
+                    "label": day.strftime("%a"),
+                    **values,
+                }
+                for day, values in daily.items()
+            ],
+            "material_counts": [
+                {"label": label, "count": count}
+                for label, count in material_counts.most_common()
+            ],
+        }
 
     def session(self) -> Session:
         return self.session_factory()

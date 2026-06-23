@@ -1,5 +1,6 @@
 import type {
   ApiProblem,
+  DashboardSummary,
   HealthResponse,
   HistoryRun,
   HistoryRunDetail,
@@ -36,6 +37,10 @@ async function requestJson<T>(input: RequestInfo | URL, init?: RequestInit): Pro
 
 export function getHealth(): Promise<HealthResponse> {
   return requestJson<HealthResponse>('/api/health')
+}
+
+export function getDashboardSummary(): Promise<DashboardSummary> {
+  return requestJson<DashboardSummary>('/api/dashboard/summary')
 }
 
 export function runPrediction(

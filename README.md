@@ -107,12 +107,16 @@ The application supports:
 - SQLite input/output audit records
 - searchable run history with input/output previews
 - rerunning a previous inspection with a new confidence threshold
+- collapsible desktop navigation with a persistent expanded/collapsed preference
+- SQLite-backed operations dashboard with lifetime, daily, trend, material-mix,
+  success-rate, image-volume, and runtime metrics
 
 The sidebar separates the operator workflow into:
 
 - **Inspection** for new image uploads and detection
 - **Run history** for previous records, findings, and reruns
-- **System** for runtime readiness and method summaries
+- **System** for inspection activity, detected-object trends, material mix, and
+  runtime readiness
 
 ## Runtime Files
 

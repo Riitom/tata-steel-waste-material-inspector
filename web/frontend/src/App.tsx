@@ -3,6 +3,7 @@ import {
   AlertCircle,
   BadgeCheck,
   CheckCircle2,
+  ChevronLeft,
   ChevronRight,
   CircleGauge,
   Database,
@@ -29,6 +30,7 @@ import {
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   ApiError,
+  getDashboardSummary,
   getHealth,
   getHistoryRun,
   getHistoryRuns,
@@ -37,6 +39,7 @@ import {
 } from './api'
 import type {
   ApiProblem,
+  DashboardSummary,
   HealthResponse,
   HistoryRun,
   HistoryRunDetail,
@@ -56,8 +59,14 @@ function App() {
   const queueRef = useRef<QueuedImage[]>([])
   const [view, setView] = useState<ViewName>('inspect')
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(
+    () => window.localStorage.getItem('material-inspector-sidebar') === 'collapsed',
+  )
   const [health, setHealth] = useState<HealthResponse | null>(null)
   const [healthError, setHealthError] = useState(false)
+  const [dashboard, setDashboard] = useState<DashboardSummary | null>(null)
+  const [dashboardLoading, setDashboardLoading] = useState(true)
+  const [dashboardError, setDashboardError] = useState(false)
   const [queue, setQueue] = useState<QueuedImage[]>([])
   const [confidence, setConfidence] = useState(DEFAULT_CONFIDENCE)
   const [pixelAreaCm2, setPixelAreaCm2] = useState(DEFAULT_PIXEL_AREA_CM2)
@@ -79,6 +88,13 @@ function App() {
         setHealthError(false)
       })
       .catch(() => setHealthError(true))
+    getDashboardSummary()
+      .then((payload) => {
+        setDashboard(payload)
+        setDashboardError(false)
+      })
+      .catch(() => setDashboardError(true))
+      .finally(() => setDashboardLoading(false))
   }, [])
 
   useEffect(() => {
@@ -116,6 +132,20 @@ function App() {
     if (nextView === 'history' && historyRuns.length === 0) {
       void loadHistory()
     }
+    if (nextView === 'system') {
+      void refreshDashboard()
+    }
+  }
+
+  function toggleSidebar() {
+    setSidebarCollapsed((current) => {
+      const next = !current
+      window.localStorage.setItem(
+        'material-inspector-sidebar',
+        next ? 'collapsed' : 'expanded',
+      )
+      return next
+    })
   }
 
   function addFiles(fileList: FileList | File[]) {
@@ -168,6 +198,7 @@ function App() {
       )
       displayPrediction(payload)
       setHistoryRuns([])
+      void refreshDashboard()
     } catch (requestError) {
       showRequestError(requestError)
     } finally {
@@ -218,6 +249,19 @@ function App() {
     }
   }
 
+  async function refreshDashboard() {
+    setDashboardLoading(true)
+    try {
+      const payload = await getDashboardSummary()
+      setDashboard(payload)
+      setDashboardError(false)
+    } catch {
+      setDashboardError(true)
+    } finally {
+      setDashboardLoading(false)
+    }
+  }
+
   async function rerunSelected() {
     if (!historyDetail || isRunning) return
     setIsRunning(true)
@@ -230,6 +274,7 @@ function App() {
       )
       displayPrediction(payload)
       setHistoryRuns([])
+      void refreshDashboard()
     } catch (requestError) {
       showRequestError(requestError)
     } finally {
@@ -248,13 +293,14 @@ function App() {
   }
 
   return (
-    <div className="app-shell">
+    <div className={`app-shell ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
       <Sidebar
         view={view}
         open={mobileNavOpen}
+        collapsed={sidebarCollapsed}
         onSelect={selectView}
         onClose={() => setMobileNavOpen(false)}
-        historyCount={historyRuns.length}
+        historyCount={dashboard?.total_runs ?? historyRuns.length}
       />
 
       <div className="app-main">
@@ -266,6 +312,15 @@ function App() {
             onClick={() => setMobileNavOpen(true)}
           >
             <Menu size={20} />
+          </button>
+          <button
+            className="desktop-sidebar-toggle"
+            type="button"
+            title={sidebarCollapsed ? 'Expand navigation' : 'Collapse navigation'}
+            aria-label={sidebarCollapsed ? 'Expand navigation' : 'Collapse navigation'}
+            onClick={toggleSidebar}
+          >
+            {sidebarCollapsed ? <ChevronRight size={19} /> : <ChevronLeft size={19} />}
           </button>
           <div className="page-title">
             <strong>{viewTitle(view)}</strong>
@@ -321,7 +376,13 @@ function App() {
           )}
 
           {view === 'system' && (
-            <SystemView health={health} historyCount={historyRuns.length} />
+            <SystemView
+              health={health}
+              dashboard={dashboard}
+              loading={dashboardLoading}
+              hasError={dashboardError}
+              onRefresh={() => void refreshDashboard()}
+            />
           )}
         </main>
       </div>
@@ -334,12 +395,14 @@ function App() {
 function Sidebar({
   view,
   open,
+  collapsed,
   onSelect,
   onClose,
   historyCount,
 }: {
   view: ViewName
   open: boolean
+  collapsed: boolean
   onSelect: (view: ViewName) => void
   onClose: () => void
   historyCount: number
@@ -352,7 +415,7 @@ function Sidebar({
         aria-label="Close navigation"
         onClick={onClose}
       />
-      <aside className={`sidebar ${open ? 'open' : ''}`}>
+      <aside className={`sidebar ${open ? 'open' : ''} ${collapsed ? 'collapsed' : ''}`}>
         <div className="sidebar-brand">
           <span className="brand-mark"><ScanLine size={22} /></span>
           <div>
@@ -365,6 +428,7 @@ function Sidebar({
             active={view === 'inspect'}
             icon={<Home size={18} />}
             label="Inspection"
+            collapsed={collapsed}
             onClick={() => onSelect('inspect')}
           />
           <SideNavButton
@@ -372,12 +436,14 @@ function Sidebar({
             icon={<History size={18} />}
             label="Run history"
             count={historyCount || undefined}
+            collapsed={collapsed}
             onClick={() => onSelect('history')}
           />
           <SideNavButton
             active={view === 'system'}
             icon={<Activity size={18} />}
             label="System"
+            collapsed={collapsed}
             onClick={() => onSelect('system')}
           />
         </nav>
@@ -398,16 +464,24 @@ function SideNavButton({
   icon,
   label,
   count,
+  collapsed,
   onClick,
 }: {
   active: boolean
   icon: React.ReactNode
   label: string
   count?: number
+  collapsed: boolean
   onClick: () => void
 }) {
   return (
-    <button className={active ? 'active' : ''} type="button" onClick={onClick}>
+    <button
+      className={active ? 'active' : ''}
+      type="button"
+      title={collapsed ? label : undefined}
+      aria-label={collapsed ? label : undefined}
+      onClick={onClick}
+    >
       {icon}
       <span>{label}</span>
       {count !== undefined && <b>{count}</b>}
@@ -814,44 +888,218 @@ function HistoryView({
   )
 }
 
-function SystemView({ health, historyCount }: { health: HealthResponse | null; historyCount: number }) {
+function SystemView({
+  health,
+  dashboard,
+  loading,
+  hasError,
+  onRefresh,
+}: {
+  health: HealthResponse | null
+  dashboard: DashboardSummary | null
+  loading: boolean
+  hasError: boolean
+  onRefresh: () => void
+}) {
   return (
     <section className="system-page">
       <div className="page-heading-row">
         <div>
-          <span className="eyebrow">Runtime overview</span>
-          <h1>System</h1>
-          <p>Detector, quality gate, storage, and weight-estimation status.</p>
+          <span className="eyebrow">Operations dashboard</span>
+          <h1>System activity</h1>
+          <p>Inspection volume, detected objects, material mix, and service readiness.</p>
         </div>
+        <button className="icon-text-button secondary" type="button" onClick={onRefresh} disabled={loading}>
+          <RefreshCw className={loading ? 'spin' : ''} size={17} />
+          Refresh
+        </button>
       </div>
-      <div className="system-grid">
-        <SystemPanel icon={<Server size={20} />} title="Detector">
-          <SystemRow label="Checkpoint" value={health?.model_name ?? 'Checking'} />
-          <SystemRow label="Processor" value={health?.device ?? 'Checking'} />
-          <SystemRow label="Input size" value={health ? `${health.input_size}px` : '640px'} />
-          <SystemRow label="Classes" value={health ? String(health.class_count) : '—'} />
-        </SystemPanel>
-        <SystemPanel icon={<BadgeCheck size={20} />} title="Image quality">
-          <SystemRow label="Blur screening" value="Active" />
-          <SystemRow label="Exposure screening" value="Active" />
-          <SystemRow label="Resolution screening" value="Active" />
-          <SystemRow label="Behavior" value="Reject before YOLO" />
-        </SystemPanel>
-        <SystemPanel icon={<Database size={20} />} title="Audit storage">
-          <SystemRow label="Database" value="SQLite" />
-          <SystemRow label="Known runs" value={historyCount ? String(historyCount) : 'Load history'} />
-          <SystemRow label="Inputs retained" value="Yes" />
-          <SystemRow label="Outputs retained" value="Yes" />
-        </SystemPanel>
-        <SystemPanel icon={<CircleGauge size={20} />} title="Weight estimation">
-          <SystemRow label="Calibration" value="Per material" />
-          <SystemRow label="Plastic area" value="Adaptive" />
-          <SystemRow label="Wood area" value="Adaptive" />
-          <SystemRow label="Output" value="Expected range" />
-        </SystemPanel>
-      </div>
+
+      {hasError && (
+        <div className="dashboard-error">
+          <AlertCircle size={18} />
+          <span>Dashboard metrics could not be loaded. The detector can still be used.</span>
+        </div>
+      )}
+
+      {loading && !dashboard && <LoadingState label="Loading system activity" />}
+
+      {dashboard && (
+        <>
+          <div className="dashboard-kpis">
+            <DashboardMetric
+              icon={<History size={20} />}
+              label="Inspections to date"
+              value={formatCount(dashboard.total_runs)}
+              detail={`${formatCount(dashboard.completed_runs)} completed`}
+            />
+            <DashboardMetric
+              icon={<Activity size={20} />}
+              label="Inspections today"
+              value={formatCount(dashboard.today_runs)}
+              detail={formatShortDate(dashboard.today_label)}
+              accent="coral"
+            />
+            <DashboardMetric
+              icon={<ScanLine size={20} />}
+              label="Objects detected"
+              value={formatCount(dashboard.total_detections)}
+              detail="Across all stored inspections"
+            />
+            <DashboardMetric
+              icon={<TargetIcon />}
+              label="Objects today"
+              value={formatCount(dashboard.today_detections)}
+              detail={`${formatCount(dashboard.today_images)} images processed`}
+              accent="coral"
+            />
+          </div>
+
+          <div className="dashboard-supporting">
+            <DashboardStat label="Images processed" value={formatCount(dashboard.total_images)} />
+            <DashboardStat label="Success rate" value={`${dashboard.success_rate.toFixed(1)}%`} />
+            <DashboardStat
+              label="Average run time"
+              value={dashboard.average_duration_ms === null ? '—' : formatDuration(dashboard.average_duration_ms)}
+            />
+            <DashboardStat label="Failed runs" value={formatCount(dashboard.failed_runs)} warning={dashboard.failed_runs > 0} />
+          </div>
+
+          <div className="dashboard-visuals">
+            <section className="dashboard-panel activity-panel">
+              <header>
+                <div>
+                  <span className="eyebrow">Seven-day movement</span>
+                  <h2>Inspection activity</h2>
+                </div>
+                <span>{dashboard.timezone}</span>
+              </header>
+              <ActivityChart points={dashboard.daily_activity} />
+            </section>
+
+            <section className="dashboard-panel material-panel">
+              <header>
+                <div>
+                  <span className="eyebrow">Lifetime object mix</span>
+                  <h2>Detected materials</h2>
+                </div>
+                <span>{formatCount(dashboard.total_detections)} objects</span>
+              </header>
+              <MaterialMix materials={dashboard.material_counts} />
+            </section>
+          </div>
+
+          <div className="system-grid">
+            <SystemPanel icon={<Server size={20} />} title="Detector readiness">
+              <SystemRow label="Status" value={health?.model_ready ? 'Ready' : 'Unavailable'} />
+              <SystemRow label="Checkpoint" value={health?.model_name ?? 'Checking'} />
+              <SystemRow label="Processor" value={health?.device ?? 'Checking'} />
+              <SystemRow label="Input size" value={health ? `${health.input_size}px` : '640px'} />
+            </SystemPanel>
+            <SystemPanel icon={<ShieldCheck size={20} />} title="Inspection safeguards">
+              <SystemRow label="Image validation" value="Active" />
+              <SystemRow label="Audit database" value="SQLite" />
+              <SystemRow label="Weight output" value="Expected range" />
+              <SystemRow label="Material classes" value={health ? String(health.class_count) : '—'} />
+            </SystemPanel>
+          </div>
+
+          <p className="dashboard-freshness">
+            Updated {formatDateTime(dashboard.generated_at)}
+          </p>
+        </>
+      )}
     </section>
   )
+}
+
+function DashboardMetric({
+  icon,
+  label,
+  value,
+  detail,
+  accent = 'green',
+}: {
+  icon: React.ReactNode
+  label: string
+  value: string
+  detail: string
+  accent?: 'green' | 'coral'
+}) {
+  return (
+    <article className={`dashboard-metric ${accent}`}>
+      <div className="dashboard-metric-icon">{icon}</div>
+      <div>
+        <span>{label}</span>
+        <strong>{value}</strong>
+        <small>{detail}</small>
+      </div>
+    </article>
+  )
+}
+
+function DashboardStat({
+  label,
+  value,
+  warning = false,
+}: {
+  label: string
+  value: string
+  warning?: boolean
+}) {
+  return (
+    <div className={`dashboard-stat ${warning ? 'warning' : ''}`}>
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </div>
+  )
+}
+
+function ActivityChart({ points }: { points: DashboardSummary['daily_activity'] }) {
+  const maximum = Math.max(1, ...points.map((point) => point.runs))
+  return (
+    <div className="activity-chart" aria-label="Inspection runs over the last seven days">
+      {points.map((point) => (
+        <div
+          className="activity-column"
+          key={point.date}
+          title={`${point.runs} inspections, ${point.images} images, ${point.detections} objects`}
+        >
+          <div className="activity-count">{point.runs}</div>
+          <div className="activity-track">
+            <span
+              className={point.date === points.at(-1)?.date ? 'today' : ''}
+              style={{ height: `${point.runs ? Math.max(12, (point.runs / maximum) * 100) : 0}%` }}
+            />
+          </div>
+          <strong>{point.label}</strong>
+          <small>{point.detections} obj</small>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function MaterialMix({ materials }: { materials: DashboardSummary['material_counts'] }) {
+  if (!materials.length) {
+    return <div className="dashboard-empty"><Database size={22} /><span>No detections recorded yet.</span></div>
+  }
+  const maximum = Math.max(1, materials[0].count)
+  return (
+    <div className="material-mix">
+      {materials.slice(0, 7).map((material) => (
+        <div className="material-mix-row" key={material.label}>
+          <span>{displayLabel(material.label)}</span>
+          <div><i style={{ width: `${Math.max(5, (material.count / maximum) * 100)}%` }} /></div>
+          <strong>{formatCount(material.count)}</strong>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function TargetIcon() {
+  return <CircleGauge size={20} />
 }
 
 function SystemPanel({ icon, title, children }: { icon: React.ReactNode; title: string; children: React.ReactNode }) {
@@ -1093,6 +1341,19 @@ function formatDateTime(value: string) {
     dateStyle: 'medium',
     timeStyle: 'short',
   }).format(new Date(value))
+}
+
+function formatShortDate(value: string) {
+  return new Intl.DateTimeFormat(undefined, {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    timeZone: 'Asia/Kolkata',
+  }).format(new Date(`${value}T00:00:00+05:30`))
+}
+
+function formatCount(value: number) {
+  return new Intl.NumberFormat().format(value)
 }
 
 export default App
