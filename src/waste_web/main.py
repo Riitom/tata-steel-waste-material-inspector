@@ -9,6 +9,7 @@ import statistics
 import time
 import uuid
 from contextlib import asynccontextmanager
+from dataclasses import dataclass
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, UploadFile
@@ -17,6 +18,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from PIL import Image, UnidentifiedImageError
 
+from waste_detector.area_refinement import estimate_foreground_area
 from waste_detector.config import load_material_profiles
 from waste_detector.estimator import WeightEstimator
 from waste_detector.types import Detection
@@ -27,16 +29,34 @@ from .schemas import (
     AuditRunDetail,
     AuditRunSummary,
     HealthResponse,
+    HistoryRunSummary,
     ImageResultResponse,
     PredictionRunResponse,
 )
 from .settings import Settings
+from .quality import ImageQualityChecker, ImageQualityResult
 
 
 settings = Settings()
 store = AuditStore(settings.database_path)
 inference = YoloInferenceService(settings)
 material_profiles = load_material_profiles(settings.materials_path)
+quality_checker = ImageQualityChecker(
+    minimum_dimension=settings.quality_min_dimension,
+    minimum_blur_score=settings.quality_min_blur,
+    minimum_contrast=settings.quality_min_contrast,
+    minimum_brightness=settings.quality_min_brightness,
+    maximum_brightness=settings.quality_max_brightness,
+)
+
+
+@dataclass
+class PreparedImage:
+    raw: bytes
+    image: Image.Image
+    original_name: str
+    mime_type: str
+    quality: ImageQualityResult
 
 
 @asynccontextmanager
@@ -88,9 +108,30 @@ async def predict(
     max_detections: int = Form(50),
     pixel_area_cm2: float = Form(settings.default_pixel_area_cm2),
 ) -> PredictionRunResponse:
-    if not files:
+    validate_prediction_parameters(
+        files_count=len(files),
+        confidence=confidence,
+        max_detections=max_detections,
+        pixel_area_cm2=pixel_area_cm2,
+    )
+    prepared = await prepare_uploads(files)
+    return await execute_prediction(
+        prepared,
+        confidence=confidence,
+        max_detections=max_detections,
+        pixel_area_cm2=pixel_area_cm2,
+    )
+
+
+def validate_prediction_parameters(
+    files_count: int,
+    confidence: float,
+    max_detections: int,
+    pixel_area_cm2: float,
+) -> None:
+    if files_count < 1:
         raise HTTPException(status_code=400, detail="Select at least one image.")
-    if len(files) > settings.max_files:
+    if files_count > settings.max_files:
         raise HTTPException(status_code=400, detail=f"Upload at most {settings.max_files} images per run.")
     if not 0.05 <= confidence <= 0.95:
         raise HTTPException(status_code=400, detail="Confidence must be between 0.05 and 0.95.")
@@ -101,6 +142,72 @@ async def predict(
     if not inference.ready:
         raise HTTPException(status_code=503, detail=inference.load_error or "YOLO model is not loaded.")
 
+
+async def prepare_uploads(files: list[UploadFile]) -> list[PreparedImage]:
+    prepared = []
+    quality_failures = []
+    for index, upload in enumerate(files, start=1):
+        raw = await upload.read()
+        prepared_image = prepare_image_bytes(
+            raw,
+            original_name=Path(upload.filename or f"image_{index}.jpg").name,
+            mime_type=upload.content_type or "image/jpeg",
+        )
+        prepared.append(prepared_image)
+        if not prepared_image.quality.valid:
+            quality_failures.append(
+                {
+                    "filename": prepared_image.original_name,
+                    "score": prepared_image.quality.score,
+                    "issues": prepared_image.quality.issues,
+                }
+            )
+    if quality_failures:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": "image_quality_failed",
+                "message": (
+                    "Detection was not started because one or more images are "
+                    "not suitable for reliable analysis."
+                ),
+                "images": quality_failures,
+            },
+        )
+    return prepared
+
+
+def prepare_image_bytes(raw: bytes, original_name: str, mime_type: str) -> PreparedImage:
+    if len(raw) > settings.max_file_bytes:
+        raise HTTPException(
+            status_code=400,
+            detail=f"{original_name} exceeds the file-size limit.",
+        )
+    if not raw:
+        raise HTTPException(status_code=400, detail=f"{original_name} is empty.")
+    try:
+        image = Image.open(io.BytesIO(raw)).convert("RGB")
+    except (UnidentifiedImageError, OSError) as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=f"{original_name} is not a valid image.",
+        ) from exc
+    return PreparedImage(
+        raw=raw,
+        image=image,
+        original_name=original_name,
+        mime_type=mime_type,
+        quality=quality_checker.assess(image),
+    )
+
+
+async def execute_prediction(
+    prepared: list[PreparedImage],
+    confidence: float,
+    max_detections: int,
+    pixel_area_cm2: float,
+    source_run_id: str | None = None,
+) -> PredictionRunResponse:
     run_id = str(uuid.uuid4())
     started = time.perf_counter()
     weight_estimator = WeightEstimator(material_profiles, pixel_area_cm2=pixel_area_cm2)
@@ -109,7 +216,9 @@ async def predict(
         model_path=str(settings.model_path),
         device=str(inference.device),
         confidence_threshold=confidence,
-        image_count=len(files),
+        image_count=len(prepared),
+        pixel_area_cm2=pixel_area_cm2,
+        source_run_id=source_run_id,
     )
     input_dir = settings.uploads_dir / run_id
     output_dir = settings.outputs_dir / run_id
@@ -119,19 +228,10 @@ async def predict(
     response_images = []
     total_detections = 0
     try:
-        for index, upload in enumerate(files, start=1):
-            raw = await upload.read()
-            if len(raw) > settings.max_file_bytes:
-                raise ValueError(f"{upload.filename or 'Image'} exceeds the file-size limit.")
-            if not raw:
-                raise ValueError(f"{upload.filename or 'Image'} is empty.")
-
-            try:
-                image = Image.open(io.BytesIO(raw)).convert("RGB")
-            except (UnidentifiedImageError, OSError) as exc:
-                raise ValueError(f"{upload.filename or 'File'} is not a valid image.") from exc
-
-            original_name = Path(upload.filename or f"image_{index}.jpg").name
+        for index, prepared_image in enumerate(prepared, start=1):
+            raw = prepared_image.raw
+            image = prepared_image.image
+            original_name = prepared_image.original_name
             safe_stem = sanitize_name(Path(original_name).stem) or f"image_{index}"
             stored_name = f"{index:02d}_{safe_stem}.jpg"
             input_path = input_dir / stored_name
@@ -153,6 +253,7 @@ async def predict(
             ) = add_weight_estimates(
                 detections,
                 weight_estimator,
+                image,
             )
             annotated = inference.draw_predictions(image, detections)
             annotated.save(output_path, format="JPEG", quality=95)
@@ -167,7 +268,7 @@ async def predict(
                 stored_filename=stored_name,
                 input_path=str(input_path.relative_to(settings.data_dir)),
                 output_path=str(output_path.relative_to(settings.data_dir)),
-                mime_type=upload.content_type or "image/jpeg",
+                mime_type=prepared_image.mime_type,
                 file_size=len(raw),
                 sha256=hashlib.sha256(raw).hexdigest(),
                 width=image.width,
@@ -175,6 +276,7 @@ async def predict(
                 detection_count=len(detections),
                 mean_confidence=mean_confidence,
                 detections_json=json.dumps(detections),
+                quality_json=json.dumps(prepared_image.quality.to_dict()),
             )
             total_detections += len(detections)
             response_images.append(
@@ -219,6 +321,7 @@ async def predict(
             expected_weight_max_kg=expected_weight_max_kg,
             weight_aggregation="mean",
             pixel_area_cm2=pixel_area_cm2,
+            source_run_id=source_run_id,
             images=response_images,
         )
     except ValueError as exc:
@@ -229,6 +332,92 @@ async def predict(
         duration_ms = round((time.perf_counter() - started) * 1000)
         store.fail_run(run_id, str(exc), duration_ms)
         raise HTTPException(status_code=500, detail="Inference failed. Check the server log.") from exc
+
+
+@app.get("/api/history/runs", response_model=list[HistoryRunSummary])
+def history_runs(limit: int = 50, offset: int = 0) -> list[HistoryRunSummary]:
+    limit = min(max(limit, 1), 200)
+    offset = max(offset, 0)
+    return [history_summary(run) for run in store.list_runs(limit=limit, offset=offset)]
+
+
+@app.get("/api/history/runs/{run_id}", response_model=AuditRunDetail)
+def history_run(run_id: str) -> AuditRunDetail:
+    run = store.get_run(run_id)
+    if run is None:
+        raise HTTPException(status_code=404, detail="Inspection run not found.")
+    return run_detail(run)
+
+
+@app.post("/api/history/runs/{run_id}/rerun", response_model=PredictionRunResponse)
+async def rerun_history(
+    run_id: str,
+    confidence: float | None = Form(default=None),
+    max_detections: int = Form(50),
+    pixel_area_cm2: float | None = Form(default=None),
+) -> PredictionRunResponse:
+    source = store.get_run(run_id)
+    if source is None:
+        raise HTTPException(status_code=404, detail="Inspection run not found.")
+    if not source.images:
+        raise HTTPException(status_code=400, detail="This run has no stored input images.")
+
+    resolved_confidence = confidence if confidence is not None else source.confidence_threshold
+    resolved_pixel_area = (
+        pixel_area_cm2
+        if pixel_area_cm2 is not None
+        else source.pixel_area_cm2 or settings.default_pixel_area_cm2
+    )
+    validate_prediction_parameters(
+        files_count=len(source.images),
+        confidence=resolved_confidence,
+        max_detections=max_detections,
+        pixel_area_cm2=resolved_pixel_area,
+    )
+
+    prepared = []
+    quality_failures = []
+    for image_record in source.images:
+        path = safe_data_path(image_record.input_path)
+        if not path.exists() or not path.is_file():
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    f"Original file for {image_record.original_filename} is no longer "
+                    "available, so this inspection cannot be rerun."
+                ),
+            )
+        raw = path.read_bytes()
+        item = prepare_image_bytes(
+            raw,
+            original_name=image_record.original_filename,
+            mime_type=image_record.mime_type,
+        )
+        prepared.append(item)
+        if not item.quality.valid:
+            quality_failures.append(
+                {
+                    "filename": item.original_name,
+                    "score": item.quality.score,
+                    "issues": item.quality.issues,
+                }
+            )
+    if quality_failures:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": "image_quality_failed",
+                "message": "Stored images no longer pass the current quality requirements.",
+                "images": quality_failures,
+            },
+        )
+    return await execute_prediction(
+        prepared,
+        confidence=resolved_confidence,
+        max_detections=max_detections,
+        pixel_area_cm2=resolved_pixel_area,
+        source_run_id=run_id,
+    )
 
 
 @app.get("/api/files/{run_id}/{image_id}/{kind}", include_in_schema=False)
@@ -275,13 +464,7 @@ def audit_run(run_id: str) -> AuditRunDetail:
     run = store.get_run(run_id)
     if run is None:
         raise HTTPException(status_code=404, detail="Audit run not found.")
-    return AuditRunDetail(
-        **run_summary(run).model_dump(),
-        model_path=run.model_path,
-        device=run.device,
-        error_message=run.error_message,
-        images=[image_response(run.id, image) for image in run.images],
-    )
+    return run_detail(run)
 
 
 def sanitize_name(value: str) -> str:
@@ -294,6 +477,25 @@ def safe_data_path(relative_path: str) -> Path:
     if candidate != data_root and data_root not in candidate.parents:
         raise HTTPException(status_code=400, detail="Invalid stored path.")
     return candidate
+
+
+def stored_file_url(run_id: str, image: AuditImage, kind: str) -> str | None:
+    relative_path = (
+        image.input_path
+        if kind == "input"
+        else image.output_path
+        if kind == "output"
+        else None
+    )
+    if relative_path is None:
+        return None
+    try:
+        path = safe_data_path(relative_path)
+    except HTTPException:
+        return None
+    if not path.exists() or not path.is_file():
+        return None
+    return f"/api/files/{run_id}/{image.id}/{kind}"
 
 
 def image_response(
@@ -323,14 +525,15 @@ def image_response(
         filename=image.original_filename,
         width=image.width,
         height=image.height,
-        input_url=f"/api/files/{run_id}/{image.id}/input",
-        output_url=f"/api/files/{run_id}/{image.id}/output",
+        input_url=stored_file_url(run_id, image, "input"),
+        output_url=stored_file_url(run_id, image, "output"),
         detection_count=image.detection_count,
         mean_confidence=image.mean_confidence,
         estimated_weight_kg=estimated_weight_kg,
         expected_weight_min_kg=expected_weight_min_kg,
         expected_weight_max_kg=expected_weight_max_kg,
         totals_by_material_kg=totals_by_material_kg,
+        quality=image.quality,
         detections=detections,
     )
 
@@ -338,17 +541,32 @@ def image_response(
 def add_weight_estimates(
     detections: list[dict],
     estimator: WeightEstimator,
+    image: Image.Image,
 ) -> tuple[list[dict], float, float, float, dict[str, float]]:
     enriched = []
     totals_by_material: dict[str, float] = {}
     expected_min = 0.0
     expected_max = 0.0
     for item in detections:
+        label = str(item["label"])
+        profile = estimator.profiles.get(label)
+        refined_area = None
+        refinement_reliability = None
+        area_method = None
+        if profile is not None:
+            refined_area, refinement_reliability, area_method = estimate_foreground_area(
+                image,
+                item["box_xyxy"],
+                label,
+                profile.box_fill_ratio,
+            )
         estimated = estimator.estimate_detection(
             Detection(
-                label=str(item["label"]),
+                label=label,
                 confidence=float(item["confidence"]),
                 box_xyxy=tuple(float(value) for value in item["box_xyxy"]),
+                mask_area_px=refined_area,
+                area_method=area_method,
             )
         )
         weight = float(estimated.estimated_weight_kg or 0.0)
@@ -362,6 +580,11 @@ def add_weight_estimates(
                 **item,
                 "category": estimated.category,
                 "area_px_used": round(float(estimated.area_px_used or 0.0), 4),
+                "area_refinement_reliability": (
+                    round(refinement_reliability, 4)
+                    if refinement_reliability is not None
+                    else None
+                ),
                 "estimated_weight_kg": round(weight, 6),
                 "expected_weight_min_kg": round(weight_min, 6),
                 "expected_weight_max_kg": round(weight_max, 6),
@@ -394,6 +617,63 @@ def run_summary(run: InferenceRun) -> AuditRunSummary:
         total_detections=run.total_detections,
         confidence_threshold=run.confidence_threshold,
         duration_ms=run.duration_ms,
+    )
+
+
+def history_summary(run: InferenceRun) -> HistoryRunSummary:
+    first_image = run.images[0] if run.images else None
+    weight_min, weight_max = run_weight_range(run)
+    confidences = [
+        image.mean_confidence
+        for image in run.images
+        if image.mean_confidence is not None
+    ]
+    return HistoryRunSummary(
+        **run_summary(run).model_dump(),
+        source_run_id=run.source_run_id,
+        pixel_area_cm2=run.pixel_area_cm2,
+        preview_input_url=stored_file_url(run.id, first_image, "input") if first_image else None,
+        preview_output_url=stored_file_url(run.id, first_image, "output") if first_image else None,
+        preview_filename=first_image.original_filename if first_image is not None else None,
+        mean_confidence=statistics.mean(confidences) if confidences else None,
+        expected_weight_min_kg=weight_min,
+        expected_weight_max_kg=weight_max,
+    )
+
+
+def run_detail(run: InferenceRun) -> AuditRunDetail:
+    weight_min, weight_max = run_weight_range(run)
+    return AuditRunDetail(
+        **run_summary(run).model_dump(),
+        model_path=run.model_path,
+        device=run.device,
+        error_message=run.error_message,
+        source_run_id=run.source_run_id,
+        pixel_area_cm2=run.pixel_area_cm2,
+        expected_weight_min_kg=weight_min,
+        expected_weight_max_kg=weight_max,
+        images=[image_response(run.id, image) for image in run.images],
+    )
+
+
+def run_weight_range(run: InferenceRun) -> tuple[float, float]:
+    ranges = [
+        image_weight_range(image)
+        for image in run.images
+    ]
+    if not ranges:
+        return 0.0, 0.0
+    return (
+        statistics.mean(weight_min for weight_min, _ in ranges),
+        statistics.mean(weight_max for _, weight_max in ranges),
+    )
+
+
+def image_weight_range(image: AuditImage) -> tuple[float, float]:
+    ranges = [detection_weight_range(item) for item in image.detections]
+    return (
+        sum(weight_min for weight_min, _ in ranges),
+        sum(weight_max for _, weight_max in ranges),
     )
 
 

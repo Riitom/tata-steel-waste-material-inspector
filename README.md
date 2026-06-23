@@ -9,9 +9,11 @@ private input/output audit evidence.
 ```mermaid
 flowchart LR
     A[React and TypeScript frontend] --> B[FastAPI backend]
-    B --> C[YOLO26x detector]
+    B --> Q[Image quality gate]
+    Q --> C[YOLO26x detector]
     C --> D[Bounding boxes and confidence scores]
-    D --> E[Explainable weight-range estimator]
+    D --> R[Plastic and wood area refinement]
+    R --> E[Explainable weight-range estimator]
     E --> F[Annotated output]
     B --> G[SQLite audit records]
 ```
@@ -43,6 +45,7 @@ Tata_Internship/
     train_yolo.py
   src/
     waste_detector/
+      area_refinement.py
       config.py
       estimator.py
       types.py
@@ -50,6 +53,7 @@ Tata_Internship/
       database.py
       inference.py
       main.py
+      quality.py
       schemas.py
       settings.py
   web/
@@ -94,11 +98,21 @@ http://127.0.0.1:8000
 The application supports:
 
 - multiple image uploads
+- image resolution, blur, contrast, and exposure validation
 - confidence threshold control
 - YOLO material detection
 - annotated output images
+- refined plastic and wood occupied-area estimates
 - object, image, and pile expected weight ranges
 - SQLite input/output audit records
+- searchable run history with input/output previews
+- rerunning a previous inspection with a new confidence threshold
+
+The sidebar separates the operator workflow into:
+
+- **Inspection** for new image uploads and detection
+- **Run history** for previous records, findings, and reruns
+- **System** for runtime readiness and method summaries
 
 ## Runtime Files
 
@@ -253,9 +267,37 @@ Each material also has a `weight_uncertainty_ratio`. The midpoint is calculated
 from area, thickness, density, and fill ratio; the website displays the
 resulting minimum-to-maximum expected range rather than the midpoint alone.
 
+For plastic and wood detections, the backend first attempts a lightweight
+foreground-area refinement inside the YOLO box. When the foreground estimate
+is not reliable, material-specific geometry rules reduce the effect of loose
+or oversized bounding boxes. The API reports the area method and its
+reliability with each detection.
+
 The result is an approximate engineering estimate, not a replacement for an
 industrial weighing system. Camera calibration and measured reference samples
 are required for operational accuracy.
+
+## Image Quality Gate
+
+Every uploaded image is checked before the model runs. Detection is stopped
+when an image is too small, blurred, low contrast, too dark, or overexposed.
+The interface shows the rejected filename, quality score, and corrective
+reason. Thresholds can be adjusted through:
+
+```text
+QUALITY_MIN_DIMENSION
+QUALITY_MIN_BLUR_SCORE
+QUALITY_MIN_CONTRAST
+QUALITY_MIN_BRIGHTNESS
+QUALITY_MAX_BRIGHTNESS
+```
+
+## Audit History
+
+SQLite stores the original image, annotated output, detections, weight ranges,
+quality result, settings, and rerun lineage. Operators can inspect this history
+from the website. Existing auditor endpoints remain available for controlled
+record access.
 
 ## Calibrate Weight Profiles
 

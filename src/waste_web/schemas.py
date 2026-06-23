@@ -12,10 +12,22 @@ class DetectionResponse(BaseModel):
     box_xyxy: list[float]
     category: str | None = None
     area_px_used: float | None = None
+    area_refinement_reliability: float | None = None
     estimated_weight_kg: float | None = None
     expected_weight_min_kg: float | None = None
     expected_weight_max_kg: float | None = None
     weight_method: str | None = None
+
+
+class ImageQualityResponse(BaseModel):
+    valid: bool
+    score: float
+    blur_score: float
+    contrast_score: float
+    brightness: float
+    width: int
+    height: int
+    issues: list[str] = Field(default_factory=list)
 
 
 class ImageResultResponse(BaseModel):
@@ -23,14 +35,15 @@ class ImageResultResponse(BaseModel):
     filename: str
     width: int
     height: int
-    input_url: str
-    output_url: str
+    input_url: str | None
+    output_url: str | None
     detection_count: int
     mean_confidence: float | None
     estimated_weight_kg: float
     expected_weight_min_kg: float
     expected_weight_max_kg: float
     totals_by_material_kg: dict[str, float]
+    quality: ImageQualityResponse | None = None
     detections: list[DetectionResponse]
 
 
@@ -45,6 +58,7 @@ class PredictionRunResponse(BaseModel):
     expected_weight_max_kg: float
     weight_aggregation: str
     pixel_area_cm2: float
+    source_run_id: str | None = None
     images: list[ImageResultResponse]
 
 
@@ -69,8 +83,23 @@ class AuditRunSummary(BaseModel):
     duration_ms: int | None
 
 
+class HistoryRunSummary(AuditRunSummary):
+    source_run_id: str | None = None
+    pixel_area_cm2: float | None = None
+    preview_input_url: str | None = None
+    preview_output_url: str | None = None
+    preview_filename: str | None = None
+    mean_confidence: float | None = None
+    expected_weight_min_kg: float = 0.0
+    expected_weight_max_kg: float = 0.0
+
+
 class AuditRunDetail(AuditRunSummary):
     model_path: str
     device: str
     error_message: str | None
+    source_run_id: str | None = None
+    pixel_area_cm2: float | None = None
+    expected_weight_min_kg: float = 0.0
+    expected_weight_max_kg: float = 0.0
     images: list[ImageResultResponse] = Field(default_factory=list)

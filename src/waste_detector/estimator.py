@@ -33,7 +33,7 @@ class WeightEstimator:
 
         if detection.mask_area_px is not None and detection.mask_area_px > 0:
             area_px = detection.mask_area_px
-            method = "segmentation_mask_area"
+            method = detection.area_method or "segmentation_mask_area"
         else:
             area_px = detection.box_area_px * profile.box_fill_ratio
             method = "box_area_with_fill_ratio"

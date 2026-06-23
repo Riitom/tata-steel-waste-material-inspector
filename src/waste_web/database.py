@@ -5,8 +5,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, Text, create_engine, select
-from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, relationship, sessionmaker
+from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, Text, create_engine, inspect, select, text
+from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, relationship, selectinload, sessionmaker
 
 
 def utc_now() -> datetime:
@@ -27,6 +27,8 @@ class InferenceRun(Base):
     model_path: Mapped[str] = mapped_column(Text)
     device: Mapped[str] = mapped_column(String(32))
     confidence_threshold: Mapped[float] = mapped_column(Float)
+    pixel_area_cm2: Mapped[float | None] = mapped_column(Float, nullable=True)
+    source_run_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
     image_count: Mapped[int] = mapped_column(Integer, default=0)
     total_detections: Mapped[int] = mapped_column(Integer, default=0)
     duration_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
@@ -57,12 +59,19 @@ class AuditImage(Base):
     detection_count: Mapped[int] = mapped_column(Integer)
     mean_confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
     detections_json: Mapped[str] = mapped_column(Text)
+    quality_json: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     run: Mapped[InferenceRun] = relationship(back_populates="images")
 
     @property
     def detections(self) -> list[dict[str, Any]]:
         return json.loads(self.detections_json)
+
+    @property
+    def quality(self) -> dict[str, Any] | None:
+        if not self.quality_json:
+            return None
+        return json.loads(self.quality_json)
 
 
 class AuditStore:
@@ -77,6 +86,25 @@ class AuditStore:
     def initialize(self) -> None:
         self.database_path.parent.mkdir(parents=True, exist_ok=True)
         Base.metadata.create_all(self.engine)
+        self._migrate_schema()
+
+    def _migrate_schema(self) -> None:
+        schema = inspect(self.engine)
+        run_columns = {column["name"] for column in schema.get_columns("inference_runs")}
+        image_columns = {column["name"] for column in schema.get_columns("audit_images")}
+        with self.engine.begin() as connection:
+            if "pixel_area_cm2" not in run_columns:
+                connection.execute(text("ALTER TABLE inference_runs ADD COLUMN pixel_area_cm2 FLOAT"))
+            if "source_run_id" not in run_columns:
+                connection.execute(text("ALTER TABLE inference_runs ADD COLUMN source_run_id VARCHAR(36)"))
+                connection.execute(
+                    text(
+                        "CREATE INDEX IF NOT EXISTS ix_inference_runs_source_run_id "
+                        "ON inference_runs (source_run_id)"
+                    )
+                )
+            if "quality_json" not in image_columns:
+                connection.execute(text("ALTER TABLE audit_images ADD COLUMN quality_json TEXT"))
 
     def create_run(
         self,
@@ -85,6 +113,8 @@ class AuditStore:
         device: str,
         confidence_threshold: float,
         image_count: int,
+        pixel_area_cm2: float | None = None,
+        source_run_id: str | None = None,
     ) -> InferenceRun:
         with self.session_factory() as session:
             run = InferenceRun(
@@ -92,6 +122,8 @@ class AuditStore:
                 model_path=model_path,
                 device=device,
                 confidence_threshold=confidence_threshold,
+                pixel_area_cm2=pixel_area_cm2,
+                source_run_id=source_run_id,
                 image_count=image_count,
             )
             session.add(run)
@@ -129,15 +161,23 @@ class AuditStore:
 
     def list_runs(self, limit: int = 50, offset: int = 0) -> list[InferenceRun]:
         with self.session_factory() as session:
-            statement = select(InferenceRun).order_by(InferenceRun.created_at.desc()).offset(offset).limit(limit)
+            statement = (
+                select(InferenceRun)
+                .options(selectinload(InferenceRun.images))
+                .order_by(InferenceRun.created_at.desc())
+                .offset(offset)
+                .limit(limit)
+            )
             return list(session.scalars(statement))
 
     def get_run(self, run_id: str) -> InferenceRun | None:
         with self.session_factory() as session:
-            statement = select(InferenceRun).where(InferenceRun.id == run_id)
+            statement = (
+                select(InferenceRun)
+                .options(selectinload(InferenceRun.images))
+                .where(InferenceRun.id == run_id)
+            )
             run = session.scalar(statement)
-            if run is not None:
-                _ = list(run.images)
             return run
 
     def get_image(self, image_id: int) -> AuditImage | None:

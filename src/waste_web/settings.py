@@ -38,6 +38,11 @@ class Settings:
     default_pixel_area_cm2: float = float(os.getenv("WASTE_PIXEL_AREA_CM2", "0.05"))
     max_files: int = int(os.getenv("WASTE_MAX_FILES", "12"))
     max_file_bytes: int = int(os.getenv("WASTE_MAX_FILE_MB", "20")) * 1024 * 1024
+    quality_min_dimension: int = int(os.getenv("WASTE_QUALITY_MIN_DIMENSION", "240"))
+    quality_min_blur: float = float(os.getenv("WASTE_QUALITY_MIN_BLUR", "20"))
+    quality_min_contrast: float = float(os.getenv("WASTE_QUALITY_MIN_CONTRAST", "10"))
+    quality_min_brightness: float = float(os.getenv("WASTE_QUALITY_MIN_BRIGHTNESS", "12"))
+    quality_max_brightness: float = float(os.getenv("WASTE_QUALITY_MAX_BRIGHTNESS", "245"))
 
     @property
     def uploads_dir(self) -> Path:
