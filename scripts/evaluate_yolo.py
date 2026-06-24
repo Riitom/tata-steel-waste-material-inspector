@@ -11,9 +11,9 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Evaluate an Ultralytics YOLO material detector.")
+    parser = argparse.ArgumentParser(description="Evaluate an Ultralytics YOLO material detector or segmentation model.")
     parser.add_argument("--model", default="models/final.pt")
-    parser.add_argument("--data", default="configs/full_dataset_yolo.yaml")
+    parser.add_argument("--data", default="configs/full_dataset_seg_hybrid.yaml")
     parser.add_argument("--split", choices=["val", "test"], default="test")
     parser.add_argument("--imgsz", type=int, default=640)
     parser.add_argument("--batch", type=int, default=2)

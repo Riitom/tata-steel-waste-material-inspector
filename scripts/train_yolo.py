@@ -13,9 +13,9 @@ sys.path.insert(0, str(ROOT / "src"))
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Train an Ultralytics YOLO detector for material detection.")
-    parser.add_argument("--data", default="configs/full_dataset_yolo.yaml", help="Ultralytics data YAML.")
-    parser.add_argument("--model", default="yolo26x.pt", help="YOLO base model or checkpoint.")
+    parser = argparse.ArgumentParser(description="Train an Ultralytics YOLO segmentation model for material detection.")
+    parser.add_argument("--data", default="configs/full_dataset_seg_hybrid.yaml", help="Ultralytics data YAML.")
+    parser.add_argument("--model", default="yolo26x-seg.pt", help="YOLO segmentation base model or checkpoint.")
     parser.add_argument("--epochs", type=int, default=100)
     parser.add_argument("--imgsz", type=int, default=640)
     parser.add_argument("--batch", type=int, default=2)

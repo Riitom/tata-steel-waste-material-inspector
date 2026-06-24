@@ -55,9 +55,10 @@ export type Detection = {
   class_id: number
   confidence: number
   box_xyxy: number[]
+  mask_area_px: number | null
+  area_method: string | null
   category: string | null
   area_px_used: number | null
-  area_refinement_reliability: number | null
   estimated_weight_kg: number | null
   expected_weight_min_kg: number | null
   expected_weight_max_kg: number | null

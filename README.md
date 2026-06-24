@@ -10,10 +10,9 @@ private input/output audit evidence.
 flowchart LR
     A[React and TypeScript frontend] --> B[FastAPI backend]
     B --> Q[Image quality gate]
-    Q --> C[YOLO26x detector]
-    C --> D[Bounding boxes and confidence scores]
-    D --> R[Plastic and wood area refinement]
-    R --> E[Explainable weight-range estimator]
+    Q --> C[YOLO26x segmentation model]
+    C --> D[Masks, boxes, and confidence scores]
+    D --> E[Explainable weight-range estimator]
     E --> F[Annotated output]
     B --> G[SQLite audit records]
 ```
@@ -28,24 +27,20 @@ data.
 ```text
 Tata_Internship/
   configs/
-    full_dataset_yolo.yaml
+    full_dataset_seg_hybrid.yaml
     materials.yaml
   datasets/
-    full_dataset/
-    oiv7_material_subset/
+    full_dataset_seg_hybrid/
   models/
     final.pt
-    args.yaml
-    results.csv
+    baseline.pt
   scripts/
     audit_logs.py
-    calibrate_materials.py
     evaluate_yolo.py
     run_web.py
     train_yolo.py
   src/
     waste_detector/
-      area_refinement.py
       config.py
       estimator.py
       types.py
@@ -102,7 +97,7 @@ The application supports:
 - confidence threshold control
 - YOLO material detection
 - annotated output images
-- refined plastic and wood occupied-area estimates
+- segmentation mask area when available, with box-area fallback
 - object, image, and pile expected weight ranges
 - SQLite input/output audit records
 - searchable run history with input/output previews
@@ -124,7 +119,7 @@ The website uses:
 
 ```text
 models/final.pt
-configs/full_dataset_yolo.yaml
+configs/full_dataset_seg_hybrid.yaml
 configs/materials.yaml
 web/frontend/dist/
 scripts/run_web.py
@@ -142,11 +137,11 @@ data/audit/audit.db
 
 ## Dataset
 
-The main YOLO dataset is:
+The main trainable YOLO segmentation dataset is:
 
 ```text
-datasets/full_dataset
-configs/full_dataset_yolo.yaml
+datasets/full_dataset_seg_hybrid
+configs/full_dataset_seg_hybrid.yaml
 ```
 
 Current YOLO split sizes:
@@ -184,13 +179,14 @@ copper class. SteelDS `a4` and `a5` are intentionally unlabeled, and `a3` was
 not present in `datasets/raw`, so those archives were not added to supervised
 training.
 
-The active `full_dataset_yolo.yaml` points to `datasets/full_dataset`. The
-dataset itself is intentionally excluded from this repository because of its
-size and the independent terms of its source datasets.
+The active `full_dataset_seg_hybrid.yaml` points to
+`datasets/full_dataset_seg_hybrid`. The dataset itself is intentionally
+excluded from this repository because of its size and the independent terms of
+its source datasets.
 
 The expanded dataset passed a complete Ultralytics scan with zero corrupt
-images. The final YOLO26x checkpoint was then fine-tuned for 10 epochs on this
-45,652-image dataset.
+images. It was then converted into the current pseudo-mask segmentation dataset
+for YOLO segmentation training.
 
 Configured classes:
 
@@ -212,11 +208,11 @@ wood
 
 ## Train YOLO
 
-Train or fine-tune after placing the dataset under
-`datasets/full_dataset`:
+Train or fine-tune after placing the segmentation dataset under
+`datasets/full_dataset_seg_hybrid`:
 
 ```powershell
-python scripts\train_yolo.py --data configs\full_dataset_yolo.yaml --model models\final.pt --epochs 10 --imgsz 640 --batch 5 --workers 8 --project . --name train --final-model models\final.pt
+python scripts\train_yolo.py --data configs\full_dataset_seg_hybrid.yaml --model yolo26x-seg.pt --epochs 10 --imgsz 640 --batch 5 --workers 8 --project . --name train --final-model models\final.pt
 ```
 
 Reduce the batch size if CUDA runs out of memory.
@@ -230,12 +226,13 @@ models/final.pt
 ## Evaluate YOLO
 
 ```powershell
-python scripts\evaluate_yolo.py --model models\final.pt --data configs\full_dataset_yolo.yaml --split test --imgsz 640 --batch 2
+python scripts\evaluate_yolo.py --model models\final.pt --data configs\full_dataset_seg_hybrid.yaml --split test --imgsz 640 --batch 2
 ```
 
-## Latest Validation Results
+## Previous Box-Detection Baseline
 
-The best result from the 10-epoch final fine-tuning run occurred at epoch 9:
+The best result from the earlier 10-epoch YOLO26x box-detection fine-tuning run
+occurred at epoch 9:
 
 ```text
 Precision:  0.7970
@@ -253,8 +250,8 @@ production use.
 Weight estimation uses:
 
 ```text
-bounding-box area
--> material fill ratio
+segmentation mask area when available
+-> box area with fill ratio fallback
 -> calibrated image area
 -> assumed thickness
 -> material density
@@ -271,11 +268,10 @@ Each material also has a `weight_uncertainty_ratio`. The midpoint is calculated
 from area, thickness, density, and fill ratio; the website displays the
 resulting minimum-to-maximum expected range rather than the midpoint alone.
 
-For plastic and wood detections, the backend first attempts a lightweight
-foreground-area refinement inside the YOLO box. When the foreground estimate
-is not reliable, material-specific geometry rules reduce the effect of loose
-or oversized bounding boxes. The API reports the area method and its
-reliability with each detection.
+For segmentation models, the backend uses the detected mask area when the model
+returns a mask. If a checkpoint only returns boxes, the estimator falls back to
+box area multiplied by the material fill ratio. The API reports the area method
+with each detection.
 
 The result is an approximate engineering estimate, not a replacement for an
 industrial weighing system. Camera calibration and measured reference samples
@@ -302,27 +298,6 @@ SQLite stores the original image, annotated output, detections, weight ranges,
 quality result, settings, and rerun lineage. Operators can inspect this history
 from the website. Existing auditor endpoints remain available for controlled
 record access.
-
-## Calibrate Weight Profiles
-
-Record scale measurements in:
-
-```text
-calibration/material_measurements.csv
-```
-
-Use one row per weighed object or single-material pile. Each row records its
-material class, detected box or mask area, physical image scale, and actual
-measured weight. Then run:
-
-```powershell
-python scripts\calibrate_materials.py
-```
-
-The script fits a robust per-material `calibration_factor`, estimates an
-uncertainty range from observed relative errors, reports MAE/MAPE before and
-after calibration, and writes `configs/materials.calibrated.yaml`. See
-`calibration/README.md` for the complete collection procedure.
 
 ## Auditor Records
 

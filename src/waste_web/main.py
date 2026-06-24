@@ -18,7 +18,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from PIL import Image, UnidentifiedImageError
 
-from waste_detector.area_refinement import estimate_foreground_area
 from waste_detector.config import load_material_profiles
 from waste_detector.estimator import WeightEstimator
 from waste_detector.types import Detection
@@ -259,7 +258,6 @@ async def execute_prediction(
             ) = add_weight_estimates(
                 detections,
                 weight_estimator,
-                image,
             )
             annotated = inference.draw_predictions(image, detections)
             annotated.save(output_path, format="JPEG", quality=95)
@@ -547,7 +545,6 @@ def image_response(
 def add_weight_estimates(
     detections: list[dict],
     estimator: WeightEstimator,
-    image: Image.Image,
 ) -> tuple[list[dict], float, float, float, dict[str, float]]:
     enriched = []
     totals_by_material: dict[str, float] = {}
@@ -555,23 +552,14 @@ def add_weight_estimates(
     expected_max = 0.0
     for item in detections:
         label = str(item["label"])
-        profile = estimator.profiles.get(label)
-        refined_area = None
-        refinement_reliability = None
-        area_method = None
-        if profile is not None:
-            refined_area, refinement_reliability, area_method = estimate_foreground_area(
-                image,
-                item["box_xyxy"],
-                label,
-                profile.box_fill_ratio,
-            )
+        mask_area_px = item.get("mask_area_px")
+        area_method = item.get("area_method")
         estimated = estimator.estimate_detection(
             Detection(
                 label=label,
                 confidence=float(item["confidence"]),
                 box_xyxy=tuple(float(value) for value in item["box_xyxy"]),
-                mask_area_px=refined_area,
+                mask_area_px=float(mask_area_px) if mask_area_px is not None else None,
                 area_method=area_method,
             )
         )
@@ -586,11 +574,6 @@ def add_weight_estimates(
                 **item,
                 "category": estimated.category,
                 "area_px_used": round(float(estimated.area_px_used or 0.0), 4),
-                "area_refinement_reliability": (
-                    round(refinement_reliability, 4)
-                    if refinement_reliability is not None
-                    else None
-                ),
                 "estimated_weight_kg": round(weight, 6),
                 "expected_weight_min_kg": round(weight_min, 6),
                 "expected_weight_max_kg": round(weight_max, 6),

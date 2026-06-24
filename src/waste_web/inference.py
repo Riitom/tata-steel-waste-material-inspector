@@ -69,16 +69,22 @@ class YoloInferenceService:
             return []
 
         detections = []
-        for box in result.boxes:
+        mask_polygons = self._mask_polygons_from_result(result)
+        for index, box in enumerate(result.boxes):
             class_id = int(box.cls[0].item())
             score = float(box.conf[0].item())
             xyxy = [round(float(value), 2) for value in box.xyxy[0].detach().cpu().tolist()]
+            mask_polygon = mask_polygons[index] if index < len(mask_polygons) else None
+            mask_area_px = self._polygon_area(mask_polygon) if mask_polygon else None
             detections.append(
                 {
                     "label": self.class_names.get(class_id, f"class_{class_id}"),
                     "class_id": class_id,
                     "confidence": round(score, 6),
                     "box_xyxy": xyxy,
+                    "mask_area_px": round(mask_area_px, 4) if mask_area_px else None,
+                    "area_method": "segmentation_mask_area" if mask_area_px else None,
+                    "mask_polygon": mask_polygon,
                 }
             )
             if len(detections) >= max_detections:
@@ -127,6 +133,14 @@ class YoloInferenceService:
             if weight_min is not None and weight_max is not None:
                 label += f" {weight_min:.2f}-{weight_max:.2f}kg"
             color = self._color_for_label(detection["label"])
+            mask_polygon = detection.get("mask_polygon")
+            if mask_polygon and len(mask_polygon) >= 3:
+                polygon_points = [(float(x), float(y)) for x, y in mask_polygon]
+                draw.line(
+                    polygon_points + [polygon_points[0]],
+                    fill=color,
+                    width=max(2, line_width - 1),
+                )
             draw.rectangle((x1, y1, x2, y2), outline=color, width=line_width)
             text_bbox = draw.textbbox((x1, y1), label, font=font)
             text_width = text_bbox[2] - text_bbox[0]
@@ -147,3 +161,30 @@ class YoloInferenceService:
             45 + (seed * 97) % 180,
             45 + (seed * 193) % 180,
         )
+
+    @staticmethod
+    def _mask_polygons_from_result(result: Any) -> list[list[list[float]] | None]:
+        masks = getattr(result, "masks", None)
+        polygons = getattr(masks, "xy", None) if masks is not None else None
+        if polygons is None:
+            return []
+
+        normalized: list[list[list[float]] | None] = []
+        for polygon in polygons:
+            points = polygon.tolist() if hasattr(polygon, "tolist") else polygon
+            clean_points = []
+            for point in points:
+                if len(point) >= 2:
+                    clean_points.append([round(float(point[0]), 2), round(float(point[1]), 2)])
+            normalized.append(clean_points if len(clean_points) >= 3 else None)
+        return normalized
+
+    @staticmethod
+    def _polygon_area(polygon: list[list[float]] | None) -> float | None:
+        if not polygon or len(polygon) < 3:
+            return None
+        area = 0.0
+        for index, point in enumerate(polygon):
+            next_point = polygon[(index + 1) % len(polygon)]
+            area += point[0] * next_point[1] - next_point[0] * point[1]
+        return abs(area) * 0.5

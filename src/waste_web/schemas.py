@@ -10,9 +10,10 @@ class DetectionResponse(BaseModel):
     class_id: int
     confidence: float
     box_xyxy: list[float]
+    mask_area_px: float | None = None
+    area_method: str | None = None
     category: str | None = None
     area_px_used: float | None = None
-    area_refinement_reliability: float | None = None
     estimated_weight_kg: float | None = None
     expected_weight_min_kg: float | None = None
     expected_weight_max_kg: float | None = None

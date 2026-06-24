@@ -1,5 +1,5 @@
 # Material classes for the Tata Steel internship prototype.
-# Keep name values in sync with configs/full_dataset_yolo.yaml.
+# Keep name values in sync with configs/full_dataset_seg_hybrid.yaml.
 # density_kg_m3 and default_thickness_cm are approximate starting points.
 # calibration_factor is learned from measured samples and defaults to 1.0.
 # weight_uncertainty_ratio controls the displayed range around the midpoint.
