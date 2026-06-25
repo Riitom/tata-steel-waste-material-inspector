@@ -58,11 +58,16 @@ export type Detection = {
   mask_area_px: number | null
   area_method: string | null
   category: string | null
+  box_area_px: number | null
   area_px_used: number | null
   estimated_weight_kg: number | null
   expected_weight_min_kg: number | null
   expected_weight_max_kg: number | null
   weight_method: string | null
+  box_fill_ratio_used: number | null
+  thickness_cm_used: number | null
+  density_kg_m3_used: number | null
+  pixel_area_cm2_used: number | null
 }
 
 export type ImageResult = {

@@ -552,15 +552,11 @@ def add_weight_estimates(
     expected_max = 0.0
     for item in detections:
         label = str(item["label"])
-        mask_area_px = item.get("mask_area_px")
-        area_method = item.get("area_method")
         estimated = estimator.estimate_detection(
             Detection(
                 label=label,
                 confidence=float(item["confidence"]),
                 box_xyxy=tuple(float(value) for value in item["box_xyxy"]),
-                mask_area_px=float(mask_area_px) if mask_area_px is not None else None,
-                area_method=area_method,
             )
         )
         weight = float(estimated.estimated_weight_kg or 0.0)
@@ -573,11 +569,17 @@ def add_weight_estimates(
             {
                 **item,
                 "category": estimated.category,
+                "area_method": estimated.area_method,
+                "box_area_px": round(float(estimated.box_area_px), 4),
                 "area_px_used": round(float(estimated.area_px_used or 0.0), 4),
                 "estimated_weight_kg": round(weight, 6),
                 "expected_weight_min_kg": round(weight_min, 6),
                 "expected_weight_max_kg": round(weight_max, 6),
                 "weight_method": estimated.weight_method,
+                "box_fill_ratio_used": estimated.box_fill_ratio_used,
+                "thickness_cm_used": estimated.thickness_cm_used,
+                "density_kg_m3_used": estimated.density_kg_m3_used,
+                "pixel_area_cm2_used": estimated.pixel_area_cm2_used,
             }
         )
     return (

@@ -31,12 +31,8 @@ class WeightEstimator:
             detection.weight_method = "skipped_unknown_material"
             return detection
 
-        if detection.mask_area_px is not None and detection.mask_area_px > 0:
-            area_px = detection.mask_area_px
-            method = detection.area_method or "segmentation_mask_area"
-        else:
-            area_px = detection.box_area_px * profile.box_fill_ratio
-            method = "box_area_with_fill_ratio"
+        area_px = detection.box_area_px * profile.box_fill_ratio
+        method = "bbox_area_with_material_fill_ratio"
 
         area_cm2 = area_px * self.pixel_area_cm2
         volume_cm3 = area_cm2 * profile.default_thickness_cm
@@ -45,6 +41,7 @@ class WeightEstimator:
         weight_kg = baseline_weight_kg * profile.calibration_factor
 
         detection.category = profile.category
+        detection.area_method = method
         detection.area_px_used = area_px
         detection.estimated_weight_kg = weight_kg
         detection.expected_weight_min_kg = max(
@@ -59,6 +56,10 @@ class WeightEstimator:
             if profile.calibration_factor != 1.0
             else method
         )
+        detection.box_fill_ratio_used = profile.box_fill_ratio
+        detection.thickness_cm_used = profile.default_thickness_cm
+        detection.density_kg_m3_used = profile.density_kg_m3
+        detection.pixel_area_cm2_used = self.pixel_area_cm2
         return detection
 
     def estimate_image(self, image_path: str, detections: list[Detection], annotated_path: str | None) -> ImageResult:

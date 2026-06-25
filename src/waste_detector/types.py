@@ -28,6 +28,10 @@ class Detection:
     expected_weight_min_kg: float | None = None
     expected_weight_max_kg: float | None = None
     weight_method: str | None = None
+    box_fill_ratio_used: float | None = None
+    thickness_cm_used: float | None = None
+    density_kg_m3_used: float | None = None
+    pixel_area_cm2_used: float | None = None
 
     @property
     def box_area_px(self) -> float:

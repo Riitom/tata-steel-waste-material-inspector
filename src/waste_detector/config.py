@@ -31,6 +31,16 @@ def load_material_profiles(path: str | Path) -> dict[str, MaterialProfile]:
             raise ValueError(
                 f"calibration_factor for {profile.name} must be greater than zero"
             )
+        if profile.density_kg_m3 <= 0:
+            raise ValueError(f"density_kg_m3 for {profile.name} must be greater than zero")
+        if profile.default_thickness_cm <= 0:
+            raise ValueError(
+                f"default_thickness_cm for {profile.name} must be greater than zero"
+            )
+        if not 0 < profile.box_fill_ratio <= 1:
+            raise ValueError(
+                f"box_fill_ratio for {profile.name} must be greater than 0 and at most 1"
+            )
         if not 0 <= profile.weight_uncertainty_ratio < 1:
             raise ValueError(
                 f"weight_uncertainty_ratio for {profile.name} must be between 0 and 1"

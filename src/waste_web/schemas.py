@@ -13,11 +13,16 @@ class DetectionResponse(BaseModel):
     mask_area_px: float | None = None
     area_method: str | None = None
     category: str | None = None
+    box_area_px: float | None = None
     area_px_used: float | None = None
     estimated_weight_kg: float | None = None
     expected_weight_min_kg: float | None = None
     expected_weight_max_kg: float | None = None
     weight_method: str | None = None
+    box_fill_ratio_used: float | None = None
+    thickness_cm_used: float | None = None
+    density_kg_m3_used: float | None = None
+    pixel_area_cm2_used: float | None = None
 
 
 class ImageQualityResponse(BaseModel):
