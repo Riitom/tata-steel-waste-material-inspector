@@ -10,8 +10,8 @@ private input/output audit evidence.
 flowchart LR
     A[React and TypeScript frontend] --> B[FastAPI backend]
     B --> Q[Image quality gate]
-    Q --> C[YOLO26x segmentation model]
-    C --> D[Masks, boxes, and confidence scores]
+    Q --> C[YOLO26x detector]
+    C --> D[Bounding boxes and confidence scores]
     D --> E[Explainable weight-range estimator]
     E --> F[Annotated output]
     B --> G[SQLite audit records]
@@ -27,10 +27,10 @@ data.
 ```text
 Tata_Internship/
   configs/
-    full_dataset_seg_hybrid.yaml
+    full_dataset_box.yaml
     materials.yaml
   datasets/
-    full_dataset_seg_hybrid/
+    full_dataset_box/
   models/
     final.pt
     baseline.pt
@@ -97,7 +97,7 @@ The application supports:
 - confidence threshold control
 - YOLO material detection
 - annotated output images
-- segmentation mask area when available, with box-area fallback
+- bounding-box area with material fill-ratio correction
 - object, image, and pile expected weight ranges
 - SQLite input/output audit records
 - searchable run history with input/output previews
@@ -119,7 +119,7 @@ The website uses:
 
 ```text
 models/final.pt
-configs/full_dataset_seg_hybrid.yaml
+configs/full_dataset_box.yaml
 configs/materials.yaml
 web/frontend/dist/
 scripts/run_web.py
@@ -137,11 +137,11 @@ data/audit/audit.db
 
 ## Dataset
 
-The main trainable YOLO segmentation dataset is:
+The main trainable YOLO detection dataset is:
 
 ```text
-datasets/full_dataset_seg_hybrid
-configs/full_dataset_seg_hybrid.yaml
+datasets/full_dataset_box
+configs/full_dataset_box.yaml
 ```
 
 Current YOLO split sizes:
@@ -179,14 +179,12 @@ copper class. SteelDS `a4` and `a5` are intentionally unlabeled, and `a3` was
 not present in `datasets/raw`, so those archives were not added to supervised
 training.
 
-The active `full_dataset_seg_hybrid.yaml` points to
-`datasets/full_dataset_seg_hybrid`. The dataset itself is intentionally
-excluded from this repository because of its size and the independent terms of
-its source datasets.
+The active `full_dataset_box.yaml` points to `datasets/full_dataset_box`. The
+dataset itself is intentionally excluded from this repository because of its
+size and the independent terms of its source datasets.
 
 The expanded dataset passed a complete Ultralytics scan with zero corrupt
-images. It was then converted into the current pseudo-mask segmentation dataset
-for YOLO segmentation training.
+images and is used for YOLO bounding-box detection training.
 
 Configured classes:
 
@@ -208,11 +206,11 @@ wood
 
 ## Train YOLO
 
-Train or fine-tune after placing the segmentation dataset under
-`datasets/full_dataset_seg_hybrid`:
+Train or fine-tune after placing the detection dataset under
+`datasets/full_dataset_box`:
 
 ```powershell
-python scripts\train_yolo.py --data configs\full_dataset_seg_hybrid.yaml --model yolo26x-seg.pt --epochs 10 --imgsz 640 --batch 5 --workers 8 --project . --name train --final-model models\final.pt
+python scripts\train_yolo.py --data configs\full_dataset_box.yaml --model yolo26x.pt --epochs 10 --imgsz 640 --batch 5 --workers 8 --project . --name train --final-model models\final.pt
 ```
 
 Reduce the batch size if CUDA runs out of memory.
@@ -226,7 +224,7 @@ models/final.pt
 ## Evaluate YOLO
 
 ```powershell
-python scripts\evaluate_yolo.py --model models\final.pt --data configs\full_dataset_seg_hybrid.yaml --split test --imgsz 640 --batch 2
+python scripts\evaluate_yolo.py --model models\final.pt --data configs\full_dataset_box.yaml --split test --imgsz 640 --batch 2
 ```
 
 ## Previous Box-Detection Baseline
@@ -250,8 +248,8 @@ production use.
 Weight estimation uses:
 
 ```text
-segmentation mask area when available
--> box area with fill ratio fallback
+bounding-box area
+-> material fill ratio
 -> calibrated image area
 -> assumed thickness
 -> material density
@@ -268,10 +266,9 @@ Each material also has a `weight_uncertainty_ratio`. The midpoint is calculated
 from area, thickness, density, and fill ratio; the website displays the
 resulting minimum-to-maximum expected range rather than the midpoint alone.
 
-For segmentation models, the backend uses the detected mask area when the model
-returns a mask. If a checkpoint only returns boxes, the estimator falls back to
-box area multiplied by the material fill ratio. The API reports the area method
-with each detection.
+The backend uses the detected bounding-box area multiplied by a material-specific
+fill ratio. This keeps the estimate explainable and is why the UI reports an
+expected range rather than a single exact weight.
 
 The result is an approximate engineering estimate, not a replacement for an
 industrial weighing system. Camera calibration and measured reference samples

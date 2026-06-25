@@ -24,7 +24,7 @@ class Settings:
     )
     dataset_config_path: Path = resolve_project_path(
         os.getenv("WASTE_DATASET_CONFIG", os.getenv("WASTE_ANNOTATION_PATH", "")),
-        "configs/full_dataset_seg_hybrid.yaml",
+        "configs/full_dataset_box.yaml",
     )
     materials_path: Path = resolve_project_path(
         os.getenv("WASTE_MATERIALS_PATH", ""),

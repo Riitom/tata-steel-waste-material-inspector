@@ -13,9 +13,9 @@ sys.path.insert(0, str(ROOT / "src"))
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Train an Ultralytics YOLO segmentation model for material detection.")
-    parser.add_argument("--data", default="configs/full_dataset_seg_hybrid.yaml", help="Ultralytics data YAML.")
-    parser.add_argument("--model", default="yolo26x-seg.pt", help="YOLO segmentation base model or checkpoint.")
+    parser = argparse.ArgumentParser(description="Train an Ultralytics YOLO detector for material detection.")
+    parser.add_argument("--data", default="configs/full_dataset_box.yaml", help="Ultralytics data YAML.")
+    parser.add_argument("--model", default="yolo26x.pt", help="YOLO detection base model or checkpoint.")
     parser.add_argument("--epochs", type=int, default=100)
     parser.add_argument("--imgsz", type=int, default=640)
     parser.add_argument("--batch", type=int, default=2)
@@ -33,6 +33,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--patience", type=int, default=20)
     parser.add_argument("--lr0", type=float, default=0.01)
     parser.add_argument("--optimizer", default="auto")
+    parser.add_argument(
+        "--warmup-epochs",
+        type=float,
+        default=None,
+        help="Override Ultralytics warmup epochs. Use a small value when continuing from a trained checkpoint.",
+    )
+    parser.add_argument("--cos-lr", action="store_true", help="Use cosine learning-rate scheduling.")
     parser.add_argument("--cache", action="store_true", help="Cache images. Avoid for very large Open Images runs.")
     parser.add_argument("--resume", action="store_true")
     parser.add_argument("--amp", action=argparse.BooleanOptionalAction, default=True)
@@ -59,24 +66,29 @@ def main() -> None:
 
         model.add_callback("on_train_epoch_end", stop_at_target_epoch)
 
-    results = model.train(
-        data=str(data_path),
-        epochs=args.epochs,
-        imgsz=args.imgsz,
-        batch=args.batch,
-        workers=args.workers,
-        device=args.device,
-        project=str(project_path),
-        name=args.name,
-        patience=args.patience,
-        lr0=args.lr0,
-        optimizer=args.optimizer,
-        cache=args.cache,
-        resume=args.resume,
-        amp=args.amp,
-        exist_ok=True,
-        plots=True,
-    )
+    train_kwargs = {
+        "data": str(data_path),
+        "epochs": args.epochs,
+        "imgsz": args.imgsz,
+        "batch": args.batch,
+        "workers": args.workers,
+        "device": args.device,
+        "project": str(project_path),
+        "name": args.name,
+        "patience": args.patience,
+        "lr0": args.lr0,
+        "optimizer": args.optimizer,
+        "cos_lr": args.cos_lr,
+        "cache": args.cache,
+        "resume": args.resume,
+        "amp": args.amp,
+        "exist_ok": True,
+        "plots": True,
+    }
+    if args.warmup_epochs is not None:
+        train_kwargs["warmup_epochs"] = args.warmup_epochs
+
+    results = model.train(**train_kwargs)
     save_dir = Path(getattr(results, "save_dir", project_path / args.name))
     best_model_path = save_dir / "weights" / "best.pt"
     if not best_model_path.exists():
