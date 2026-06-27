@@ -50,7 +50,7 @@ import type {
 import './App.css'
 
 const MAX_FILES = 12
-const DEFAULT_CONFIDENCE = 0.6
+const DEFAULT_CONFIDENCE = 0.25
 const DEFAULT_PIXEL_AREA_CM2 = 0.05
 
 type ViewName = 'inspect' | 'history' | 'system'
@@ -634,7 +634,7 @@ function InspectionView(props: InspectionProps) {
               id="confidence"
               className="confidence-slider"
               type="range"
-              min="0.3"
+              min="0.05"
               max="0.9"
               step="0.05"
               value={props.confidence}
@@ -1201,10 +1201,10 @@ function ResultItem({
                   <span className="detection-index">{detectionIndex + 1}</span>
                   <div>
                     <strong>{displayLabel(detection.label)}</strong>
-                    <span>{formatDetectionMethod(detection.weight_method)}</span>
+                    <span>{formatDetectionSource(detection)}</span>
                   </div>
                   <div className="detection-values">
-                    <b>{Math.round(detection.confidence * 100)}%</b>
+                    <b>{detection.annotation_source === 'reference_label' ? 'Reference' : `${Math.round(detection.confidence * 100)}%`}</b>
                     <span>{formatWeightRange(detection.expected_weight_min_kg ?? 0, detection.expected_weight_max_kg ?? 0)}</span>
                   </div>
                 </div>
@@ -1311,6 +1311,11 @@ function viewSubtitle(view: ViewName) {
 
 function displayLabel(label: string) {
   return label.replaceAll('_', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase())
+}
+
+function formatDetectionSource(detection: { annotation_source?: string | null; weight_method: string | null }) {
+  if (detection.annotation_source === 'reference_label') return 'Reference label with weight estimate'
+  return formatDetectionMethod(detection.weight_method)
 }
 
 function formatDetectionMethod(method: string | null) {

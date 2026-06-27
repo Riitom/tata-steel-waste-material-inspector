@@ -33,6 +33,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--patience", type=int, default=20)
     parser.add_argument("--lr0", type=float, default=0.01)
     parser.add_argument("--optimizer", default="auto")
+    parser.add_argument("--mosaic", type=float, default=None, help="Override mosaic augmentation strength.")
+    parser.add_argument("--erasing", type=float, default=None, help="Override random erasing augmentation strength.")
+    parser.add_argument("--close-mosaic", type=int, default=None, help="Override Ultralytics close_mosaic setting.")
     parser.add_argument(
         "--warmup-epochs",
         type=float,
@@ -54,6 +57,7 @@ def main() -> None:
     project_path = resolve_path(args.project)
     final_model_path = resolve_path(args.final_model)
     model = YOLO(args.model)
+    model.add_callback("on_fit_epoch_end", print_epoch_metrics)
     if args.target_epoch is not None:
         if args.target_epoch < 1:
             raise SystemExit("--target-epoch must be at least 1.")
@@ -87,6 +91,12 @@ def main() -> None:
     }
     if args.warmup_epochs is not None:
         train_kwargs["warmup_epochs"] = args.warmup_epochs
+    if args.mosaic is not None:
+        train_kwargs["mosaic"] = args.mosaic
+    if args.erasing is not None:
+        train_kwargs["erasing"] = args.erasing
+    if args.close_mosaic is not None:
+        train_kwargs["close_mosaic"] = args.close_mosaic
 
     results = model.train(**train_kwargs)
     save_dir = Path(getattr(results, "save_dir", project_path / args.name))
@@ -99,6 +109,43 @@ def main() -> None:
     print(f"YOLO_MODEL_BEST={best_model_path}")
     print(f"YOLO_MODEL_FINAL={final_model_path}")
     print("YOLO_TRAIN_PASS")
+
+
+def print_epoch_metrics(trainer) -> None:
+    metrics = getattr(trainer, "metrics", {}) or {}
+    epoch = int(getattr(trainer, "epoch", -1)) + 1
+    values = {
+        "precision": read_metric(metrics, "metrics/precision(B)", "metrics/precision"),
+        "recall": read_metric(metrics, "metrics/recall(B)", "metrics/recall"),
+        "mAP50": read_metric(metrics, "metrics/mAP50(B)", "metrics/mAP50"),
+        "mAP50_95": read_metric(metrics, "metrics/mAP50-95(B)", "metrics/mAP50-95"),
+    }
+    print(
+        "YOLO_EPOCH_METRICS "
+        f"epoch={epoch} "
+        f"precision={format_metric(values['precision'])} "
+        f"recall={format_metric(values['recall'])} "
+        f"mAP50={format_metric(values['mAP50'])} "
+        f"mAP50_95={format_metric(values['mAP50_95'])}",
+        flush=True,
+    )
+
+
+def read_metric(metrics: dict, *keys: str) -> float | None:
+    for key in keys:
+        value = metrics.get(key)
+        if value is not None:
+            try:
+                return float(value)
+            except (TypeError, ValueError):
+                return None
+    return None
+
+
+def format_metric(value: float | None) -> str:
+    if value is None or value != value:
+        return "nan"
+    return f"{value:.5f}"
 
 
 def resolve_path(path: str | Path) -> Path:
