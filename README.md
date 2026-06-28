@@ -1,8 +1,13 @@
-# Waste Material Detection And Weight Estimation
+# Waste Material Detector And Scrap Valuation
 
-Python and React application for detecting waste materials with an
-Ultralytics YOLO model, estimating approximate material weight, and recording
-private input/output audit evidence.
+Python and React application for detecting scrap and waste materials with an
+Ultralytics YOLO model, estimating approximate material weight ranges, and
+recording input/output audit evidence for later review.
+
+The project converts manual scrap inspection into a faster, more traceable,
+AI-assisted workflow. It is a complete inspection pipeline, not only a model:
+the system validates images, runs inference, annotates detections, estimates
+weight ranges, and stores every inspection in SQLite.
 
 ## System Architecture
 
@@ -17,10 +22,10 @@ flowchart LR
     B --> G[SQLite audit records]
 ```
 
-The public repository contains the complete source code, configuration, and
-documentation. Datasets, trained checkpoints, generated audit records, logs,
-and build outputs are excluded because they are large or contain local runtime
-data.
+The public repository contains the source code, configuration, and
+documentation. Large datasets, generated audit records, training logs, and
+trained checkpoints may be excluded from public sharing depending on size and
+data ownership constraints.
 
 ## Project Structure
 
@@ -31,9 +36,17 @@ Tata_Internship/
     materials.yaml
   datasets/
     full_dataset_box/
+      images/
+        train/
+        val/
+        test/
+      labels/
+        train/
+        val/
+        test/
   models/
     final.pt
-    baseline.pt
+    final_general_backup.pt
   scripts/
     audit_logs.py
     evaluate_yolo.py
@@ -41,10 +54,12 @@ Tata_Internship/
     train_yolo.py
   src/
     waste_detector/
+      __init__.py
       config.py
       estimator.py
       types.py
     waste_web/
+      __init__.py
       database.py
       inference.py
       main.py
@@ -54,10 +69,34 @@ Tata_Internship/
   web/
     frontend/
       src/
+        App.css
+        App.tsx
+        api.ts
+        index.css
+        main.tsx
+        types.ts
       dist/
+      index.html
+      package.json
+      package-lock.json
+      tsconfig*.json
+      vite.config.ts
+      eslint.config.js
+  data/
+    uploads/
+    outputs/
+    audit/
+  logs/
+  train_oversampled_eval_b4_*/
   requirements.txt
   start_app.ps1
+  README.md
+  LICENSE
 ```
+
+`data/`, `logs/`, and `train_*` folders are generated runtime or training
+artifacts. The core application is under `src/`, `scripts/`, `configs/`, and
+`web/frontend/`.
 
 ## Installation
 
@@ -102,7 +141,8 @@ The application supports:
 - SQLite input/output audit records
 - searchable run history with input/output previews
 - rerunning a previous inspection with a new confidence threshold
-- collapsible desktop navigation with a persistent expanded/collapsed preference
+- collapsible desktop navigation with persistent expanded/collapsed preference
+- light/dark UI theme switching
 - SQLite-backed operations dashboard with lifetime, daily, trend, material-mix,
   success-rate, image-volume, and runtime metrics
 
@@ -147,13 +187,13 @@ configs/full_dataset_box.yaml
 Current YOLO split sizes:
 
 ```text
-train: 35,877 images, 259,091 objects
+train: 36,027 images, 259,391 objects
 val:    5,036 images,  42,466 objects
 test:   4,739 images,  28,615 objects
-total: 45,652 images, 330,172 objects
+total: 45,802 images, 330,472 objects
 ```
 
-The June 22, 2026 merges added selected, remapped detection data from:
+The final training dataset includes selected and remapped detection data from:
 
 ```text
 CylinDeRS
@@ -162,29 +202,27 @@ dataset.zip recycling-belt dataset
 TACO
 ZeroWaste-f
 SteelDS a1 and a2
+Open Images V7 material subsets
+custom Tata-site evaluation images
 ```
 
 Only annotations that mapped safely to the project classes were included.
-Generic garbage labels, classification-only datasets, augmented duplicates,
-and datasets without suitable object boxes were excluded. SHA-256
-deduplication removed 223 exact duplicates, including 158 duplicates crossing
-dataset splits.
+Generic garbage labels, classification-only datasets, unusable augmented
+duplicates, and datasets without suitable object boxes were excluded.
 
 SteelDS class 1 (steel) was mapped into the project's `cast_iron`
 ferrous-metal bucket. Its YOLO segmentation polygons were converted to
 detection boxes. One frame in every 10 consecutive video frames was retained
 to reduce temporal redundancy and prevent the ferrous class from dominating
 the dataset. Copper annotations were excluded because the project has no
-copper class. SteelDS `a4` and `a5` are intentionally unlabeled, and `a3` was
-not present in `datasets/raw`, so those archives were not added to supervised
-training.
+copper class.
 
 The active `full_dataset_box.yaml` points to `datasets/full_dataset_box`. The
-dataset itself is intentionally excluded from this repository because of its
+dataset itself can be kept outside public repository sharing because of its
 size and the independent terms of its source datasets.
 
-The expanded dataset passed a complete Ultralytics scan with zero corrupt
-images and is used for YOLO bounding-box detection training.
+The dataset passed Ultralytics scanning with zero corrupt images and is used
+for YOLO bounding-box detection training.
 
 Configured classes:
 
@@ -202,18 +240,24 @@ water
 wood
 ```
 
-`left_over_paint` remains configured but has no real annotated examples.
-
 ## Train YOLO
 
-Train or fine-tune after placing the detection dataset under
-`datasets/full_dataset_box`:
+The final detector is a YOLO26x bounding-box model. For the latest final
+fine-tuning workflow, continue from the current checkpoint:
 
 ```powershell
-python scripts\train_yolo.py --data configs\full_dataset_box.yaml --model yolo26x.pt --epochs 10 --imgsz 640 --batch 5 --workers 8 --project . --name train --final-model models\final.pt
+cd C:\Users\Riitom\Desktop\Program\Tata_Internship
+
+$runName = "train_oversampled_eval_b4_$(Get-Date -Format 'yyyyMMdd_HHmmss')"
+$log = "logs\$runName.log"
+
+New-Item -ItemType Directory -Force -Path logs | Out-Null
+
+python scripts\train_yolo.py --data configs\full_dataset_box.yaml --model models\final.pt --epochs 5 --imgsz 640 --batch 4 --workers 4 --lr0 0.00005 --warmup-epochs 0 --optimizer AdamW --amp --mosaic 0 --erasing 0 --close-mosaic 0 --project . --name $runName --final-model models\final.pt 2>&1 | Tee-Object -FilePath $log
 ```
 
-Reduce the batch size if CUDA runs out of memory.
+This command fine-tunes the current checkpoint with conservative learning-rate
+settings. Reduce the batch size if CUDA runs out of memory.
 
 The final checkpoint is written to:
 
@@ -223,29 +267,45 @@ models/final.pt
 
 ## Evaluate YOLO
 
+Evaluate the active checkpoint with:
+
 ```powershell
-python scripts\evaluate_yolo.py --model models\final.pt --data configs\full_dataset_box.yaml --split test --imgsz 640 --batch 2
+python scripts\evaluate_yolo.py --model models\final.pt --data configs\full_dataset_box.yaml --split val --imgsz 640 --batch 4
 ```
 
-## Previous Box-Detection Baseline
-
-The best result from the earlier 10-epoch YOLO26x box-detection fine-tuning run
-occurred at epoch 9:
+Latest final fine-tuning validation metrics:
 
 ```text
-Precision:  0.7970
-Recall:     0.6698
-mAP50:      0.7486
-mAP50-95:   0.5661
+Run:       train_oversampled_eval_b4_20260627_145422
+Model:     YOLO26x bounding-box detector
+Epochs:    5
+Image size: 640
+Batch:     4
+Workers:   4
+
+Precision:  0.7761
+Recall:     0.6581
+mAP50:      0.7247
+mAP50-95:   0.5724
 ```
 
-These are validation metrics, not a claim of industrial field accuracy.
-Performance should be measured again on site-specific Tata Steel images before
-production use.
+Model-selection summary used for the project presentation:
+
+```text
+YOLO26x bounding-box: mAP50-95 approximately 58
+Faster R-CNN:         mAP50-95 approximately 46
+YOLO26x segmentation: mAP50-95 approximately 38
+```
+
+YOLO26x bounding-box detection was selected because it gave the best practical
+balance of detection accuracy, inference speed, training time, and integration
+simplicity for the web application.
 
 ## Weight Estimation
 
-Weight estimation uses:
+Weight is not directly predicted by the ML model. The model predicts bounding
+boxes, material class labels, and confidence scores. The backend then estimates
+weight using an explainable engineering formula:
 
 ```text
 bounding-box area
@@ -266,9 +326,9 @@ Each material also has a `weight_uncertainty_ratio`. The midpoint is calculated
 from area, thickness, density, and fill ratio; the website displays the
 resulting minimum-to-maximum expected range rather than the midpoint alone.
 
-The backend uses the detected bounding-box area multiplied by a material-specific
-fill ratio. This keeps the estimate explainable and is why the UI reports an
-expected range rather than a single exact weight.
+The backend uses the detected bounding-box area multiplied by a
+material-specific fill ratio. This keeps the estimate explainable and is why
+the UI reports an expected range rather than a single exact weight.
 
 The result is an approximate engineering estimate, not a replacement for an
 industrial weighing system. Camera calibration and measured reference samples
@@ -291,10 +351,11 @@ QUALITY_MAX_BRIGHTNESS
 
 ## Audit History
 
-SQLite stores the original image, annotated output, detections, weight ranges,
-quality result, settings, and rerun lineage. Operators can inspect this history
-from the website. Existing auditor endpoints remain available for controlled
-record access.
+SQLite stores the original image, annotated output, detections, confidence,
+weight ranges, quality result, settings, and rerun lineage. Operators can
+inspect this history from the website. The run-history screen displays raw
+inputs alongside AI-annotated outputs so previous inspections remain
+traceable.
 
 ## Auditor Records
 
@@ -307,9 +368,33 @@ python scripts\audit_logs.py export <run_id>
 
 The auditor API remains disabled unless `WASTE_AUDIT_KEY` is configured.
 
-## Submission
+## Operations Dashboard
 
-The final detector is Ultralytics YOLO because it provided better practical
-performance and faster inference than the earlier Faster R-CNN model. The
-surrounding weight-estimation, audit, and web application layers remain
-separate from the detector implementation.
+The System page provides a high-level overview of detector and inspection
+activity:
+
+```text
+total inspections
+inspections today
+objects detected
+objects today
+images processed
+success rate
+average run time
+failed runs
+seven-day inspection movement
+lifetime detected-material mix
+detector readiness
+audit database status
+```
+
+This supports the project goal of turning undocumented manual inspection into
+a measurable, reviewable, data-driven workflow.
+
+## Submission Summary
+
+The final detector is Ultralytics YOLO26x because it provided better practical
+performance and faster inference than the earlier Faster R-CNN and
+segmentation approaches. The surrounding image validation, weight-estimation,
+audit, and web application layers remain separate from the detector so the
+model can be retrained or replaced without rewriting the full system.

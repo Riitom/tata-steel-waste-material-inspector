@@ -50,25 +50,6 @@ quality_checker = ImageQualityChecker(
 )
 
 
-# Short-term submission support: these are known Tata-site reference images that
-# already exist in the training dataset with verified YOLO labels. They are kept
-# explicit so reference annotations are auditable instead of silently faked.
-REFERENCE_LABELS_BY_IMAGE_TOKEN: dict[str, list[tuple[int, float, float, float, float]]] = {
-    "IMG_20260623_123957": [
-        (0, 0.38509765625, 0.3118865740740741, 0.4121223958333333, 0.47813368055555555),
-        (3, 0.6717035590277778, 0.7451157407407407, 0.41024522569444444, 0.3694762731481482),
-    ],
-    "IMG_20260623_124046": [
-        (0, 0.5236284722222222, 0.41776041666666663, 0.09022569444444445, 0.08513310185185186),
-        (0, 0.29360894097222223, 0.4217997685185185, 0.29424913194444446, 0.6632378472222222),
-        (0, 0.7424110243055556, 0.696400462962963, 0.2890776909722222, 0.5498234953703703),
-    ],
-    "IMG_20260623_124322": [
-        (0, 0.3865451388888889, 0.5278645833333333, 0.4150151909722222, 0.7769849537037038),
-    ],
-}
-
-
 @dataclass
 class PreparedImage:
     raw: bytes
@@ -93,7 +74,7 @@ async def lifespan(_: FastAPI):
 
 
 app = FastAPI(
-    title="Waste Material Inspector",
+    title="Waste Material Detector",
     version="1.0.0",
     lifespan=lifespan,
 )
@@ -254,6 +235,7 @@ async def execute_prediction(
     try:
         for index, prepared_image in enumerate(prepared, start=1):
             raw = prepared_image.raw
+            image_sha256 = hashlib.sha256(raw).hexdigest()
             image = prepared_image.image
             original_name = prepared_image.original_name
             safe_stem = sanitize_name(Path(original_name).stem) or f"image_{index}"
@@ -268,7 +250,6 @@ async def execute_prediction(
                 confidence,
                 max_detections,
             )
-            detections = reference_label_detections(original_name, image) or detections
             (
                 detections,
                 image_weight,
@@ -281,12 +262,11 @@ async def execute_prediction(
             )
             annotated = inference.draw_predictions(image, detections)
             annotated.save(output_path, format="JPEG", quality=95)
-            model_confidences = [
-                item["confidence"]
-                for item in detections
-                if item.get("annotation_source") != "63%"
-            ]
-            mean_confidence = statistics.mean(model_confidences) if model_confidences else None
+            mean_confidence = (
+                statistics.mean(item["confidence"] for item in detections)
+                if detections
+                else None
+            )
             audit_image = store.add_image(
                 run_id,
                 original_filename=original_name,
@@ -295,7 +275,7 @@ async def execute_prediction(
                 output_path=str(output_path.relative_to(settings.data_dir)),
                 mime_type=prepared_image.mime_type,
                 file_size=len(raw),
-                sha256=hashlib.sha256(raw).hexdigest(),
+                sha256=image_sha256,
                 width=image.width,
                 height=image.height,
                 detection_count=len(detections),
@@ -561,37 +541,6 @@ def image_response(
         quality=image.quality,
         detections=detections,
     )
-
-
-def reference_label_detections(original_name: str, image: Image.Image) -> list[dict] | None:
-    token_match = re.search(r"IMG_\d{8}_\d{6}", original_name)
-    if token_match is None:
-        return None
-
-    labels = REFERENCE_LABELS_BY_IMAGE_TOKEN.get(token_match.group(0))
-    if not labels:
-        return None
-
-    detections = []
-    for class_id, center_x, center_y, width, height in labels:
-        x1 = max(0.0, (center_x - width / 2.0) * image.width)
-        y1 = max(0.0, (center_y - height / 2.0) * image.height)
-        x2 = min(float(image.width), (center_x + width / 2.0) * image.width)
-        y2 = min(float(image.height), (center_y + height / 2.0) * image.height)
-        label = inference.class_names.get(class_id, f"class_{class_id}")
-        detections.append(
-            {
-                "label": label,
-                "class_id": class_id,
-                "confidence": 1.0,
-                "box_xyxy": [round(x1, 2), round(y1, 2), round(x2, 2), round(y2, 2)],
-                "mask_area_px": None,
-                "area_method": "reference_annotation_fallback",
-                "mask_polygon": None,
-                "annotation_source": "63%",
-            }
-        )
-    return detections
 
 
 def add_weight_estimates(

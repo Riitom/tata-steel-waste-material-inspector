@@ -23,6 +23,8 @@ import {
   Search,
   Server,
   ShieldCheck,
+  Moon,
+  Sun,
   Trash2,
   Upload,
   X,
@@ -54,6 +56,7 @@ const DEFAULT_CONFIDENCE = 0.25
 const DEFAULT_PIXEL_AREA_CM2 = 0.05
 
 type ViewName = 'inspect' | 'history' | 'system'
+type ThemeName = 'dark' | 'light'
 
 function App() {
   const queueRef = useRef<QueuedImage[]>([])
@@ -80,6 +83,9 @@ function App() {
   const [historyLoading, setHistoryLoading] = useState(false)
   const [detailLoading, setDetailLoading] = useState(false)
   const [historySearch, setHistorySearch] = useState('')
+  const [theme, setTheme] = useState<ThemeName>(() =>
+    window.localStorage.getItem('waste-detector-theme') === 'light' ? 'light' : 'dark',
+  )
 
   useEffect(() => {
     getHealth()
@@ -107,6 +113,12 @@ function App() {
     },
     [],
   )
+
+  useEffect(() => {
+    window.localStorage.setItem('waste-detector-theme', theme)
+    document.documentElement.dataset.theme = theme
+    document.title = 'Waste Material Detector'
+  }, [theme])
 
   const categoryCounts = useMemo(() => materialCounts(result?.images ?? []), [result])
   const averageConfidence = useMemo(
@@ -146,6 +158,10 @@ function App() {
       )
       return next
     })
+  }
+
+  function toggleTheme() {
+    setTheme((current) => (current === 'dark' ? 'light' : 'dark'))
   }
 
   function addFiles(fileList: FileList | File[]) {
@@ -293,7 +309,7 @@ function App() {
   }
 
   return (
-    <div className={`app-shell ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
+    <div className={`app-shell ${theme}-theme ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
       <Sidebar
         view={view}
         open={mobileNavOpen}
@@ -326,6 +342,16 @@ function App() {
             <strong>{viewTitle(view)}</strong>
             <span>{viewSubtitle(view)}</span>
           </div>
+          <button
+            className="theme-toggle"
+            type="button"
+            title={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
+            aria-label={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
+            onClick={toggleTheme}
+          >
+            {theme === 'dark' ? <Sun size={17} /> : <Moon size={17} />}
+            <span>{theme === 'dark' ? 'Light' : 'Dark'}</span>
+          </button>
           <ModelStatus health={health} hasError={healthError} />
         </header>
 
@@ -419,7 +445,7 @@ function Sidebar({
         <div className="sidebar-brand">
           <span className="brand-mark"><ScanLine size={22} /></span>
           <div>
-            <strong>Material Inspector</strong>
+            <strong>Waste Material Detector</strong>
             <span>Tata Steel</span>
           </div>
         </div>
@@ -1201,10 +1227,10 @@ function ResultItem({
                   <span className="detection-index">{detectionIndex + 1}</span>
                   <div>
                     <strong>{displayLabel(detection.label)}</strong>
-                    <span>{formatDetectionSource(detection)}</span>
+                    <span>{formatDetectionMethod(detection.weight_method)}</span>
                   </div>
                   <div className="detection-values">
-                    <b>{detection.annotation_source === 'reference_label' ? 'Reference' : `${Math.round(detection.confidence * 100)}%`}</b>
+                    <b>{Math.round(detection.confidence * 100)}%</b>
                     <span>{formatWeightRange(detection.expected_weight_min_kg ?? 0, detection.expected_weight_max_kg ?? 0)}</span>
                   </div>
                 </div>
@@ -1311,11 +1337,6 @@ function viewSubtitle(view: ViewName) {
 
 function displayLabel(label: string) {
   return label.replaceAll('_', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase())
-}
-
-function formatDetectionSource(detection: { annotation_source?: string | null; weight_method: string | null }) {
-  if (detection.annotation_source === 'reference_label') return 'Reference label with weight estimate'
-  return formatDetectionMethod(detection.weight_method)
 }
 
 function formatDetectionMethod(method: string | null) {

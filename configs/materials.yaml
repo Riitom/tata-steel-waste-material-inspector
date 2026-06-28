@@ -9,9 +9,9 @@
 materials:
   - name: cast_iron
     category: ferrous_metal
-    density_kg_m3: 7200
+    density_kg_m3: 5000
     default_thickness_cm: 1.5
-    box_fill_ratio: 0.65
+    box_fill_ratio: 0.50
     calibration_factor: 1.0
     weight_uncertainty_ratio: 0.25
 
@@ -25,7 +25,7 @@ materials:
 
   - name: gas_cylinder
     category: pressurized_container
-    density_kg_m3: 7850
+    density_kg_m3: 750
     default_thickness_cm: 0.6
     box_fill_ratio: 0.75
     calibration_factor: 1.0
@@ -33,11 +33,11 @@ materials:
 
   - name: dust
     category: fine_waste
-    density_kg_m3: 1200
+    density_kg_m3: 2000
     default_thickness_cm: 1.0
     box_fill_ratio: 0.80
     calibration_factor: 1.0
-    weight_uncertainty_ratio: 0.50
+    weight_uncertainty_ratio: 0.65
 
   - name: pitted_sheets
     category: ferrous_metal

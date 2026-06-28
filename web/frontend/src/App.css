@@ -13,6 +13,23 @@
   --header: #12241f;
 }
 
+.app-shell.dark-theme {
+  --ink: #eef8f4;
+  --muted: #a5aaa8;
+  --line: #242424;
+  --line-strong: #3a3a3a;
+  --surface: #050505;
+  --surface-soft: #101010;
+  --green: #2db893;
+  --green-dark: #78dfbd;
+  --green-soft: #102720;
+  --coral: #f07855;
+  --coral-soft: #2a1511;
+  --header: #000000;
+  color: var(--ink);
+  background: #000000;
+}
+
 .app-shell {
   min-height: 100vh;
   display: grid;
@@ -62,6 +79,7 @@
 
 .sidebar-brand strong {
   font-size: 14px;
+  line-height: 1.2;
 }
 
 .sidebar-brand span {
@@ -193,6 +211,27 @@
 }
 
 .desktop-sidebar-toggle:hover {
+  color: #ffffff;
+  background: #1a352c;
+}
+
+.theme-toggle {
+  min-height: 34px;
+  padding: 0 11px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  flex: 0 0 auto;
+  color: #dbe4e0;
+  background: transparent;
+  border: 1px solid #355046;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.theme-toggle:hover {
   color: #ffffff;
   background: #1a352c;
 }
@@ -1709,6 +1748,126 @@ a.icon-button {
 .dialog-action {
   grid-column: 1 / -1;
   justify-self: end;
+}
+
+.app-shell.dark-theme .workspace-band,
+.app-shell.dark-theme .history-page,
+.app-shell.dark-theme .system-page {
+  background: #000000;
+}
+
+.app-shell.dark-theme .results-band {
+  background: #000000;
+}
+
+.app-shell.dark-theme .workspace-grid,
+.app-shell.dark-theme .upload-workspace,
+.app-shell.dark-theme .control-panel,
+.app-shell.dark-theme .result-item,
+.app-shell.dark-theme .history-shell,
+.app-shell.dark-theme .history-detail,
+.app-shell.dark-theme .dashboard-panel,
+.app-shell.dark-theme .dashboard-metric,
+.app-shell.dark-theme .dashboard-supporting,
+.app-shell.dark-theme .system-panel,
+.app-shell.dark-theme .metric-row,
+.app-shell.dark-theme .problem-dialog {
+  color: var(--ink);
+  background: var(--surface);
+}
+
+.app-shell.dark-theme .drop-zone,
+.app-shell.dark-theme .file-card,
+.app-shell.dark-theme .result-toolbar,
+.app-shell.dark-theme .detection-summary,
+.app-shell.dark-theme .history-index,
+.app-shell.dark-theme .history-metrics,
+.app-shell.dark-theme .search-box input,
+.app-shell.dark-theme .calibration-control > div,
+.app-shell.dark-theme .segmented-control button.active,
+.app-shell.dark-theme .dashboard-stat,
+.app-shell.dark-theme .activity-track,
+.app-shell.dark-theme .material-mix-row > div {
+  color: var(--ink);
+  background: var(--surface-soft);
+}
+
+.app-shell.dark-theme .quality-notice,
+.app-shell.dark-theme .quality-score,
+.app-shell.dark-theme .lineage-note,
+.app-shell.dark-theme .detection-index,
+.app-shell.dark-theme .drop-icon {
+  color: var(--green-dark) !important;
+  background: var(--green-soft);
+  border-color: #205a49;
+}
+
+.app-shell.dark-theme .segmented-control {
+  background: #050505;
+  border: 1px solid var(--line);
+}
+
+.app-shell.dark-theme .icon-text-button.secondary,
+.app-shell.dark-theme .icon-button {
+  color: var(--ink);
+  background: var(--surface-soft);
+  border-color: var(--line);
+}
+
+.app-shell.dark-theme .icon-text-button.secondary:hover,
+.app-shell.dark-theme .icon-button:hover,
+.app-shell.dark-theme .history-run:hover {
+  background: #181818;
+}
+
+.app-shell.dark-theme .history-run {
+  color: var(--ink);
+  background: transparent;
+}
+
+.app-shell.dark-theme .history-run.active {
+  background: #141414;
+}
+
+.app-shell.dark-theme .empty-queue,
+.app-shell.dark-theme .history-empty,
+.app-shell.dark-theme .detail-empty,
+.app-shell.dark-theme .loading-state,
+.app-shell.dark-theme .no-detections,
+.app-shell.dark-theme .dashboard-empty {
+  color: var(--muted);
+  background: transparent;
+}
+
+.app-shell.dark-theme .distribution-track,
+.app-shell.dark-theme .file-card img,
+.app-shell.dark-theme .history-thumb {
+  background: #191919;
+}
+
+.app-shell.dark-theme .activity-count,
+.app-shell.dark-theme .dashboard-stat strong,
+.app-shell.dark-theme .system-row strong,
+.app-shell.dark-theme .detection-summary strong,
+.app-shell.dark-theme .metric strong {
+  color: var(--ink);
+}
+
+.app-shell.dark-theme .detection-row,
+.app-shell.dark-theme .system-row {
+  border-color: var(--line);
+}
+
+.app-shell.dark-theme .dialog-backdrop {
+  background: rgba(3, 8, 7, 0.76);
+}
+
+.app-shell.dark-theme .dashboard-error,
+.app-shell.dark-theme .error-banner,
+.app-shell.dark-theme .quality-failures > div {
+  color: #ffb49c;
+  background: var(--coral-soft);
+  border-color: #6b3528;
 }
 
 @media (max-width: 1050px) {

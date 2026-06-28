@@ -19,10 +19,16 @@ html {
   background: #eef2f0;
 }
 
+html[data-theme='dark'] {
+  color: #eef8f4;
+  background: #091511;
+}
+
 body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
+  background: inherit;
 }
 
 button,

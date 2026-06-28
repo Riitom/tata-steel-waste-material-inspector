@@ -68,7 +68,6 @@ export type Detection = {
   thickness_cm_used: number | null
   density_kg_m3_used: number | null
   pixel_area_cm2_used: number | null
-  annotation_source?: string | null
 }
 
 export type ImageResult = {
