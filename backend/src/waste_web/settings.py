@@ -5,7 +5,8 @@ from dataclasses import dataclass
 from pathlib import Path
 
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
+BACKEND_ROOT = PROJECT_ROOT / "backend"
 
 
 def resolve_project_path(value: str, default: str) -> Path:
@@ -18,20 +19,21 @@ def resolve_project_path(value: str, default: str) -> Path:
 @dataclass(frozen=True)
 class Settings:
     project_root: Path = PROJECT_ROOT
+    backend_root: Path = BACKEND_ROOT
     model_path: Path = resolve_project_path(
         os.getenv("WASTE_MODEL_PATH", ""),
-        "models/final.pt",
+        "backend/models/final.pt",
     )
     dataset_config_path: Path = resolve_project_path(
         os.getenv("WASTE_DATASET_CONFIG", os.getenv("WASTE_ANNOTATION_PATH", "")),
-        "configs/full_dataset_box.yaml",
+        "backend/configs/full_dataset_box.yaml",
     )
     materials_path: Path = resolve_project_path(
         os.getenv("WASTE_MATERIALS_PATH", ""),
-        "configs/materials.yaml",
+        "backend/configs/materials.yaml",
     )
     data_dir: Path = resolve_project_path(os.getenv("WASTE_DATA_DIR", ""), "data")
-    frontend_dist: Path = resolve_project_path(os.getenv("WASTE_FRONTEND_DIST", ""), "web/frontend/dist")
+    frontend_dist: Path = resolve_project_path(os.getenv("WASTE_FRONTEND_DIST", ""), "frontend/dist")
     audit_key: str = os.getenv("WASTE_AUDIT_KEY", "")
     device: str = os.getenv("WASTE_DEVICE", "")
     model_imgsz: int = int(os.getenv("WASTE_MODEL_IMGSZ", "640"))

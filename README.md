@@ -4,7 +4,7 @@ Python and React application for detecting scrap and waste materials with an
 Ultralytics YOLO model, estimating approximate material weight ranges, and
 recording input/output audit evidence for later review.
 
-The project converts manual scrap inspection into a faster, more traceable,
+The project converts manual scrap and waste inspection into a faster, more traceable,
 AI-assisted workflow. It is a complete inspection pipeline, not only a model:
 the system validates images, runs inference, annotates detections, estimates
 weight ranges, and stores every inspection in SQLite.
@@ -31,72 +31,71 @@ data ownership constraints.
 
 ```text
 Tata_Internship/
-  configs/
-    full_dataset_box.yaml
-    materials.yaml
-  datasets/
-    full_dataset_box/
-      images/
-        train/
-        val/
-        test/
-      labels/
-        train/
-        val/
-        test/
-  models/
-    final.pt
-    final_general_backup.pt
-  scripts/
-    audit_logs.py
-    evaluate_yolo.py
-    run_web.py
-    train_yolo.py
-  src/
-    waste_detector/
-      __init__.py
-      config.py
-      estimator.py
-      types.py
-    waste_web/
-      __init__.py
-      database.py
-      inference.py
-      main.py
-      quality.py
-      schemas.py
-      settings.py
-  web/
-    frontend/
-      src/
-        App.css
-        App.tsx
-        api.ts
-        index.css
-        main.tsx
-        types.ts
-      dist/
-      index.html
-      package.json
-      package-lock.json
-      tsconfig*.json
-      vite.config.ts
-      eslint.config.js
+  frontend/
+    src/
+      App.css
+      App.tsx
+      api.ts
+      index.css
+      main.tsx
+      types.ts
+    dist/
+    index.html
+    package.json
+    package-lock.json
+    tsconfig*.json
+    vite.config.ts
+    eslint.config.js
+  backend/
+    configs/
+      full_dataset_box.yaml
+      materials.yaml
+    datasets/
+      full_dataset_box/
+        images/
+          train/
+          val/
+          test/
+        labels/
+          train/
+          val/
+          test/
+    models/
+      final.pt
+      final_general_backup.pt
+    scripts/
+      audit_logs.py
+      evaluate_yolo.py
+      run_web.py
+      train_yolo.py
+    src/
+      waste_detector/
+        __init__.py
+        config.py
+        estimator.py
+        types.py
+      waste_web/
+        __init__.py
+        database.py
+        inference.py
+        main.py
+        quality.py
+        schemas.py
+        settings.py
+    logs/
+    runs/
+    yolo26x.pt
   data/
     uploads/
     outputs/
     audit/
-  logs/
-  train_oversampled_eval_b4_*/
+  .env.example
+  .gitignore
+  LICENSE
+  README.md
   requirements.txt
   start_app.ps1
-  README.md
-  LICENSE
 ```
-
-`data/`, `logs/`, and `train_*` folders are generated runtime or training
-artifacts. The core application is under `src/`, `scripts/`, `configs/`, and
-`web/frontend/`.
 
 ## Installation
 
@@ -109,15 +108,15 @@ pip install -r requirements.txt
 Build the frontend before starting the application:
 
 ```powershell
-cd web\frontend
+cd frontend
 npm install
 npm run build
-cd ..\..
+cd ..
 ```
 
 ## Run The Application
 
-Place a compatible trained checkpoint at `models/final.pt`, then run:
+Place a compatible trained checkpoint at `backend/models/final.pt`, then run:
 
 ```powershell
 .\start_app.ps1
@@ -158,13 +157,13 @@ The sidebar separates the operator workflow into:
 The website uses:
 
 ```text
-models/final.pt
-configs/full_dataset_box.yaml
-configs/materials.yaml
-web/frontend/dist/
-scripts/run_web.py
-src/waste_detector/
-src/waste_web/
+backend/models/final.pt
+backend/configs/full_dataset_box.yaml
+backend/configs/materials.yaml
+frontend/dist/
+backend/scripts/run_web.py
+backend/src/waste_detector/
+backend/src/waste_web/
 ```
 
 Runtime data is generated automatically under:
@@ -180,8 +179,8 @@ data/audit/audit.db
 The main trainable YOLO detection dataset is:
 
 ```text
-datasets/full_dataset_box
-configs/full_dataset_box.yaml
+backend/datasets/full_dataset_box
+backend/configs/full_dataset_box.yaml
 ```
 
 Current YOLO split sizes:
@@ -217,9 +216,9 @@ to reduce temporal redundancy and prevent the ferrous class from dominating
 the dataset. Copper annotations were excluded because the project has no
 copper class.
 
-The active `full_dataset_box.yaml` points to `datasets/full_dataset_box`. The
-dataset itself can be kept outside public repository sharing because of its
-size and the independent terms of its source datasets.
+The active `full_dataset_box.yaml` points to `backend/datasets/full_dataset_box`.
+The dataset itself can be kept outside public repository sharing because of
+its size and the independent terms of its source datasets.
 
 The dataset passed Ultralytics scanning with zero corrupt images and is used
 for YOLO bounding-box detection training.
@@ -249,39 +248,41 @@ fine-tuning workflow, continue from the current checkpoint:
 cd C:\Users\Riitom\Desktop\Program\Tata_Internship
 
 $runName = "train_oversampled_eval_b4_$(Get-Date -Format 'yyyyMMdd_HHmmss')"
-$log = "logs\$runName.log"
+$log = "backend\logs\$runName.log"
 
-New-Item -ItemType Directory -Force -Path logs | Out-Null
+New-Item -ItemType Directory -Force -Path backend\logs | Out-Null
 
-python scripts\train_yolo.py --data configs\full_dataset_box.yaml --model models\final.pt --epochs 5 --imgsz 640 --batch 4 --workers 4 --lr0 0.00005 --warmup-epochs 0 --optimizer AdamW --amp --mosaic 0 --erasing 0 --close-mosaic 0 --project . --name $runName --final-model models\final.pt 2>&1 | Tee-Object -FilePath $log
+python backend\scripts\train_yolo.py --data configs\full_dataset_box.yaml --model models\final.pt --epochs 10 --imgsz 640 --batch 4 --workers 4 --lr0 0.00005 --warmup-epochs 0 --optimizer AdamW --amp --mosaic 0 --erasing 0 --close-mosaic 0 --project . --name $runName --final-model models\final.pt 2>&1 | Tee-Object -FilePath $log
 ```
 
-This command fine-tunes the current checkpoint with conservative learning-rate
-settings. Reduce the batch size if CUDA runs out of memory.
-
-The final checkpoint is written to:
+The training script resolves relative `--data`, `--model`, `--project`, and
+`--final-model` paths from inside `backend/`. The command above writes the run
+folder under `backend/`, the log under `backend/logs/`, and the final checkpoint
+to:
 
 ```text
-models/final.pt
+backend/models/final.pt
 ```
+
+Reduce the batch size if CUDA runs out of memory.
 
 ## Evaluate YOLO
 
 Evaluate the active checkpoint with:
 
 ```powershell
-python scripts\evaluate_yolo.py --model models\final.pt --data configs\full_dataset_box.yaml --split val --imgsz 640 --batch 4
+python backend\scripts\evaluate_yolo.py --model models\final.pt --data configs\full_dataset_box.yaml --split val --imgsz 640 --batch 4
 ```
 
 Latest final fine-tuning validation metrics:
 
 ```text
-Run:       train_oversampled_eval_b4_20260627_145422
-Model:     YOLO26x bounding-box detector
-Epochs:    5
+Run:        train_oversampled_eval_b4_20260627_145422
+Model:      YOLO26x bounding-box detector
+Epochs:     10
 Image size: 640
-Batch:     4
-Workers:   4
+Batch:      4
+Workers:    4
 
 Precision:  0.7761
 Recall:     0.6581
@@ -319,7 +320,7 @@ bounding-box area
 Material properties are configured in:
 
 ```text
-configs/materials.yaml
+backend/configs/materials.yaml
 ```
 
 Each material also has a `weight_uncertainty_ratio`. The midpoint is calculated
@@ -342,11 +343,11 @@ The interface shows the rejected filename, quality score, and corrective
 reason. Thresholds can be adjusted through:
 
 ```text
-QUALITY_MIN_DIMENSION
-QUALITY_MIN_BLUR_SCORE
-QUALITY_MIN_CONTRAST
-QUALITY_MIN_BRIGHTNESS
-QUALITY_MAX_BRIGHTNESS
+WASTE_QUALITY_MIN_DIMENSION
+WASTE_QUALITY_MIN_BLUR
+WASTE_QUALITY_MIN_CONTRAST
+WASTE_QUALITY_MIN_BRIGHTNESS
+WASTE_QUALITY_MAX_BRIGHTNESS
 ```
 
 ## Audit History
@@ -360,10 +361,10 @@ traceable.
 ## Auditor Records
 
 ```powershell
-python scripts\audit_logs.py database
-python scripts\audit_logs.py list --limit 25
-python scripts\audit_logs.py show <run_id>
-python scripts\audit_logs.py export <run_id>
+python backend\scripts\audit_logs.py database
+python backend\scripts\audit_logs.py list --limit 25
+python backend\scripts\audit_logs.py show <run_id>
+python backend\scripts\audit_logs.py export <run_id>
 ```
 
 The auditor API remains disabled unless `WASTE_AUDIT_KEY` is configured.

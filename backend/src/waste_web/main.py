@@ -675,7 +675,7 @@ def frontend_index() -> FileResponse:
     if not index.exists():
         raise HTTPException(
             status_code=503,
-            detail="Frontend is not built. Run npm install and npm run build in web/frontend.",
+            detail="Frontend is not built. Run npm install and npm run build in frontend.",
         )
     return FileResponse(index)
 
@@ -692,3 +692,4 @@ def frontend_files(full_path: str) -> FileResponse:
     if index.exists():
         return FileResponse(index)
     raise HTTPException(status_code=404, detail="Frontend is not built.")
+

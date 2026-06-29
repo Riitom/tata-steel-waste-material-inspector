@@ -56,7 +56,8 @@ def main() -> None:
     data_path = resolve_path(args.data)
     project_path = resolve_path(args.project)
     final_model_path = resolve_path(args.final_model)
-    model = YOLO(args.model)
+    model_path = resolve_path(args.model)
+    model = YOLO(str(model_path) if model_path.exists() else args.model)
     model.add_callback("on_fit_epoch_end", print_epoch_metrics)
     if args.target_epoch is not None:
         if args.target_epoch < 1:
@@ -157,3 +158,5 @@ def resolve_path(path: str | Path) -> Path:
 
 if __name__ == "__main__":
     main()
+
+
