@@ -25,7 +25,7 @@ materials:
 
   - name: gas_cylinder
     category: pressurized_container
-    density_kg_m3: 750
+    density_kg_m3: 7500
     default_thickness_cm: 0.6
     box_fill_ratio: 0.75
     calibration_factor: 1.0
