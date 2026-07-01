@@ -201,7 +201,7 @@ def export_run(settings: Settings, run, requested_output: str | None) -> None:
   </style>
 </head>
 <body>
-  <header><span>Private inference audit</span><h1>Waste Material Inspector</h1></header>
+  <header><span>Private inference audit</span><h1>AI-Assisted Scrap Detection And Weight Estimation</h1></header>
   <main>
     <div class="summary">
       <div><span>Run ID</span><strong>{html.escape(run.id[:8])}</strong></div>

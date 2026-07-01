@@ -74,7 +74,7 @@ async def lifespan(_: FastAPI):
 
 
 app = FastAPI(
-    title="Waste Material Detector",
+    title="AI-Assisted Scrap Detection And Weight Estimation",
     version="1.0.0",
     lifespan=lifespan,
 )

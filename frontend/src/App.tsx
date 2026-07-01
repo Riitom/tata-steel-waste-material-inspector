@@ -54,6 +54,7 @@ import './App.css'
 const MAX_FILES = 12
 const DEFAULT_CONFIDENCE = 0.25
 const DEFAULT_PIXEL_AREA_CM2 = 0.05
+const APP_TITLE = 'AI-Assisted Scrap Detection And Weight Estimation'
 
 type ViewName = 'inspect' | 'history' | 'system'
 type ThemeName = 'dark' | 'light'
@@ -117,7 +118,7 @@ function App() {
   useEffect(() => {
     window.localStorage.setItem('waste-detector-theme', theme)
     document.documentElement.dataset.theme = theme
-    document.title = 'Waste Material Detector'
+    document.title = APP_TITLE
   }, [theme])
 
   const categoryCounts = useMemo(() => materialCounts(result?.images ?? []), [result])
@@ -445,8 +446,8 @@ function Sidebar({
         <div className="sidebar-brand">
           <span className="brand-mark"><ScanLine size={22} /></span>
           <div>
-            <strong>Waste Material Detector</strong>
-            <span>Tata Steel</span>
+            <strong>AI-Assisted Scrap Detection</strong>
+            <span>Weight Estimation</span>
           </div>
         </div>
         <nav className="side-nav">
@@ -1299,7 +1300,7 @@ function ModelStatus({ health, hasError }: { health: HealthResponse | null; hasE
     <div className={`model-status ${hasError ? 'error' : ready ? 'ready' : ''}`}>
       <span className="status-dot" />
       <div>
-        <strong>{hasError ? 'Service unavailable' : 'Tata Steel'}</strong>
+        <strong>{hasError ? 'Service unavailable' : 'AI-assisted detector'}</strong>
         <span>{health?.model_name ?? 'Connecting to detector'}</span>
       </div>
     </div>

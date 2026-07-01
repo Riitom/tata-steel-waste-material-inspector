@@ -1,4 +1,4 @@
-# Waste Material Detector And Scrap Valuation
+# AI-Assisted Scrap Detection And Weight Estimation
 
 Python and React application for detecting scrap and waste materials with an
 Ultralytics YOLO model, estimating approximate material weight ranges, and
@@ -30,7 +30,7 @@ data ownership constraints.
 ## Project Structure
 
 ```text
-Tata_Internship/
+AI-Assisted Scrap Detection And Weight Estimation/
   frontend/
     src/
       App.css
@@ -245,7 +245,7 @@ The final detector is a YOLO26x bounding-box model. For the latest final
 fine-tuning workflow, continue from the current checkpoint:
 
 ```powershell
-cd C:\Users\Riitom\Desktop\Program\Tata_Internship
+cd "C:\Users\Riitom\Desktop\Program\AI-Assisted Scrap Detection And Weight Estimation"
 
 $runName = "train_oversampled_eval_b4_$(Get-Date -Format 'yyyyMMdd_HHmmss')"
 $log = "backend\logs\$runName.log"

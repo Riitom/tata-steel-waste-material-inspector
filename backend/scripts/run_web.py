@@ -12,7 +12,7 @@ sys.path.insert(0, str(ROOT / "src"))
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Run the Waste Material Inspector web application.")
+    parser = argparse.ArgumentParser(description="Run the AI-Assisted Scrap Detection And Weight Estimation web application.")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8000)
     parser.add_argument("--reload", action="store_true")

@@ -1,4 +1,4 @@
-# Material classes for the Tata Steel internship prototype.
+# Material classes for the AI-assisted scrap detection prototype.
 # Keep name values in sync with configs/full_dataset_box.yaml.
 # density_kg_m3 and default_thickness_cm are approximate starting points.
 # box_fill_ratio estimates how much of the detected bounding box is actual material.
